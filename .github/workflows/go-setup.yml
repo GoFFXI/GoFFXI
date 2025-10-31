@@ -1,0 +1,37 @@
+name: Go Setup
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: 'Go version to use'
+        required: false
+        type: string
+        default: '1.25.3'
+      cache-dependency-path:
+        description: 'Path to dependency files for caching'
+        required: false
+        type: string
+        default: 'go.sum'
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+          cache-dependency-path: ${{ inputs.cache-dependency-path }}
+
+      - name: Download dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Display Go version
+        run: go version
