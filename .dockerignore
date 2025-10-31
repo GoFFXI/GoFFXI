@@ -1,0 +1,50 @@
+# Build artifacts
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+login-server
+
+# Test and coverage files
+*.test
+*.out
+coverage.html
+coverage.out
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+LICENSE
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Development files
+Makefile
+*.yaml
+*.yml
+!go.mod
+!go.sum
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+*.old
