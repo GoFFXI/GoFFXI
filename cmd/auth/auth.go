@@ -21,22 +21,23 @@ type AuthServer struct {
 	wg     sync.WaitGroup
 }
 
-func Run(cfg config.Config, logger *slog.Logger, nc *nats.Conn) error {
+func Run(cfg *config.Config, logger *slog.Logger, nc *nats.Conn) error {
 	// create a context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	server, err := server.NewServer(cfg, logger, nc)
+	baseServer, err := server.NewServer(ctx, cfg, logger, nc)
 	if err != nil {
 		return fmt.Errorf("failed to create auth server: %w", err)
 	}
 
 	authServer := &AuthServer{
-		Server: server,
+		Server: baseServer,
 		ctx:    ctx,
 		cancel: cancel,
 	}
 
+	//nolint:errcheck // socket will be closed on shutdown
 	defer authServer.Socket().Close()
 
 	// start connection processor goroutine
@@ -63,7 +64,7 @@ func (s *AuthServer) processConnections() {
 			for {
 				select {
 				case conn := <-s.Connections():
-					conn.Close()
+					_ = conn.Close()
 				default:
 					return
 				}
@@ -107,24 +108,25 @@ func (s *AuthServer) acceptConnections() {
 			s.Logger().Debug("connection queued for processing", "client", remoteAddr)
 		case <-s.ctx.Done():
 			// server is shutting down, close the connection
-			conn.Close()
+			_ = conn.Close()
 			return
 		default:
 			// connection channel is full, reject the connection
 			s.Logger().Warn("connection queue full, rejecting connection", "client", remoteAddr)
-			conn.Close()
+			_ = conn.Close()
 		}
 	}
 }
 
 func (s *AuthServer) handleConnection(conn net.Conn) {
+	//nolint:errcheck // closing connection
 	defer conn.Close()
 
 	clientAddr := conn.RemoteAddr().String()
 	s.Logger().Info("processing connection", "client", clientAddr)
 
 	// set read/write timeout for the connection
-	conn.SetDeadline(time.Now().Add(time.Duration(s.Config().ServerReadTimeoutSeconds) * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(time.Duration(s.Config().ServerReadTimeoutSeconds) * time.Second))
 
 	// // connection handling loop
 	// for {
@@ -139,7 +141,7 @@ func (s *AuthServer) handleConnection(conn net.Conn) {
 }
 
 func (s *AuthServer) waitForShutdown() error {
-	signalChannel := s.Server.SetupSignalHandler()
+	signalChannel := s.SetupSignalHandler()
 
 	// block until signal received
 	sig := <-signalChannel

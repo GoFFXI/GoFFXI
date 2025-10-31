@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"log/slog"
@@ -16,23 +17,25 @@ import (
 type Server struct {
 	socket      net.Listener
 	log         *slog.Logger
-	cfg         config.Config
 	nc          *nats.Conn
 	connections chan net.Conn
+	cfg         *config.Config
 }
 
-func NewServer(cfg config.Config, logger *slog.Logger, nc *nats.Conn) (*Server, error) {
+func NewServer(ctx context.Context, cfg *config.Config, logger *slog.Logger, nc *nats.Conn) (*Server, error) {
 	var socket net.Listener
+	var cert tls.Certificate
 	var err error
 
 	if cfg.AuthServerTLSCertPath != "" && cfg.AuthServerTLSKeyPath != "" {
 		// start with TLS
-		cert, err := tls.LoadX509KeyPair(cfg.AuthServerTLSCertPath, cfg.AuthServerTLSKeyPath)
+		cert, err = tls.LoadX509KeyPair(cfg.AuthServerTLSCertPath, cfg.AuthServerTLSKeyPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load TLS certificates: %w", err)
 		}
 
 		tlsConfig := &tls.Config{
+			MinVersion:   tls.VersionTLS12,
 			Certificates: []tls.Certificate{cert},
 		}
 
@@ -41,8 +44,10 @@ func NewServer(cfg config.Config, logger *slog.Logger, nc *nats.Conn) (*Server, 
 			return nil, fmt.Errorf("failed to start TLS listener: %w", err)
 		}
 	} else {
+		netConfig := &net.ListenConfig{}
+
 		// start without TLS
-		socket, err = net.Listen("tcp4", fmt.Sprintf(":%d", cfg.ServerPort))
+		socket, err = netConfig.Listen(ctx, "tcp4", fmt.Sprintf(":%d", cfg.ServerPort))
 		if err != nil {
 			return nil, fmt.Errorf("failed to start TCP listener: %w", err)
 		}
@@ -68,7 +73,7 @@ func (s *Server) SetupSignalHandler() chan os.Signal {
 	return signalChannel
 }
 
-func (s *Server) Config() config.Config {
+func (s *Server) Config() *config.Config {
 	return s.cfg
 }
 

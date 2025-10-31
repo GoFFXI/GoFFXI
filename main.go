@@ -36,7 +36,7 @@ func main() {
 
 	// detect the log level
 	logLevel := slog.LevelInfo
-	if err := logLevel.UnmarshalText([]byte(cfg.LogLevel)); err != nil {
+	if err = logLevel.UnmarshalText([]byte(cfg.LogLevel)); err != nil {
 		fmt.Fprintf(os.Stderr, "error: invalid log level: '%s'\n", cfg.LogLevel)
 		os.Exit(1)
 	}
@@ -47,40 +47,41 @@ func main() {
 	}))
 
 	// set the maxprocs
-	if _, err := maxprocs.Set(maxprocs.Logger(func(message string, args ...any) {
+	if _, err = maxprocs.Set(maxprocs.Logger(func(message string, args ...any) {
 		logger.Info(fmt.Sprintf(message, args...))
 	})); err != nil {
 		logger.Error("could not set GOMAXPROCS", "error", err)
 	}
 
-	// setup a connection to the nats server
-	nc, err := nats.Connect(cfg.NATSURL)
-	if err != nil {
-		logger.Error("failed to connect to NATS server", "error", err)
-		os.Exit(1)
-	}
-	defer nc.Close()
-
 	switch role {
 	case "auth":
+		nc := getNATSConnection(&cfg, logger)
+
 		logger = logger.With("role", "auth")
 		logger.Info("starting login-server...")
-		if err := auth.Run(cfg, logger, nc); err != nil {
+		if err = auth.Run(&cfg, logger, nc); err != nil {
 			logger.Error("failed to start login-server", "error", err)
+			nc.Close()
 			os.Exit(1)
 		}
 	case "data":
+		nc := getNATSConnection(&cfg, logger)
+
 		logger = logger.With("role", "data")
 		logger.Info("starting login-server...")
-		if err := data.Run(cfg, logger, nc); err != nil {
+		if err = data.Run(&cfg, logger, nc); err != nil {
 			logger.Error("failed to start login-server", "error", err)
+			nc.Close()
 			os.Exit(1)
 		}
 	case "view":
+		nc := getNATSConnection(&cfg, logger)
+
 		logger = logger.With("role", "view")
 		logger.Info("starting login-server...")
-		if err := view.Run(cfg, logger, nc); err != nil {
+		if err = view.Run(&cfg, logger, nc); err != nil {
 			logger.Error("failed to start login-server", "error", err)
+			nc.Close()
 			os.Exit(1)
 		}
 	default:
@@ -88,6 +89,17 @@ func main() {
 		printUsage()
 		os.Exit(1)
 	}
+}
+
+func getNATSConnection(cfg *config.Config, logger *slog.Logger) *nats.Conn {
+	// setup a connection to the nats server
+	nc, err := nats.Connect(cfg.NATSURL)
+	if err != nil {
+		logger.Error("failed to connect to NATS server", "error", err)
+		os.Exit(1)
+	}
+
+	return nc
 }
 
 func handleFlags() string {

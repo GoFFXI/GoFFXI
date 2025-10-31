@@ -7,7 +7,7 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-func Run(cfg config.Config, logger *slog.Logger, nc *nats.Conn) error {
+func Run(_ *config.Config, _ *slog.Logger, _ *nats.Conn) error {
 	//
 
 	return nil
