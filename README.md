@@ -8,7 +8,6 @@ A modern Go implementation of a multi-role TCP server for Final Fantasy XI, feat
 - **TCP Connection Handling**: Efficient TCP server implementation with connection queuing and concurrent processing
 - **Channel-Based Architecture**: Connections are processed in the order received using Go channels
 - **Graceful Shutdown**: Proper signal handling for clean server shutdown
-- **Environment-Based Configuration**: All configuration via environment variables with `GOFFXI_` prefix
 - **Structured Logging**: Built-in logger with multiple log levels and structured output
 
 ## Architecture
