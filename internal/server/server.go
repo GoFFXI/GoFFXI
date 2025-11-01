@@ -8,11 +8,15 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/GoFFXI/login-server/internal/config"
 	"github.com/nats-io/nats.go"
 )
+
+type ConnectionHandler func(ctx context.Context, conn net.Conn)
 
 type Server struct {
 	socket      net.Listener
@@ -68,13 +72,6 @@ func NewServer(ctx context.Context, cfg *config.Config, logger *slog.Logger, nc 
 	return srv, nil
 }
 
-func (s *Server) SetupSignalHandler() chan os.Signal {
-	signalChannel := make(chan os.Signal, 1)
-	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-
-	return signalChannel
-}
-
 func (s *Server) Config() *config.Config {
 	return s.cfg
 }
@@ -91,17 +88,108 @@ func (s *Server) Socket() net.Listener {
 	return s.socket
 }
 
-func (s *Server) Connections() chan net.Conn {
-	return s.connections
+func (s *Server) ProcessConnections(ctx context.Context, wg *sync.WaitGroup, handler ConnectionHandler) {
+	defer wg.Done()
+
+	for {
+		select {
+		case <-ctx.Done():
+			s.Logger().Info("stopping connection processor")
+
+			// drain remaining connections
+			for {
+				select {
+				case conn := <-s.connections:
+					_ = conn.Close()
+				default:
+					return
+				}
+			}
+		case conn := <-s.connections:
+			// handle each connection in a separate goroutine
+			// this ensures we can process multiple connections concurrently
+			// while still maintaining the order through the channel
+			wg.Add(1)
+			go func(c net.Conn) {
+				defer wg.Done()
+				handler(ctx, c)
+			}(conn)
+		}
+	}
 }
 
-func (s *Server) Shutdown() {
+func (s *Server) AcceptConnections(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for {
+		// accept will block until a new connection arrives or the listener is closed
+		conn, err := s.Socket().Accept()
+		if err != nil {
+			select {
+			case <-ctx.Done():
+				s.Logger().Info("stopping connection acceptor")
+				return
+			default:
+				s.Logger().Error("failed to accept connection", "error", err)
+				continue
+			}
+		}
+
+		remoteAddr := conn.RemoteAddr().String()
+		// todo: check if this IP is banned before proceeding
+		s.Logger().Info("new connection accepted", "client", remoteAddr)
+
+		// add connection to channel for processing
+		select {
+		case s.connections <- conn:
+			s.Logger().Debug("connection queued for processing", "client", remoteAddr)
+		case <-ctx.Done():
+			// server is shutting down, close the connection
+			_ = conn.Close()
+			return
+		default:
+			// connection channel is full, reject the connection
+			s.Logger().Warn("connection queue full, rejecting connection", "client", remoteAddr)
+			_ = conn.Close()
+		}
+	}
+}
+
+func (s *Server) WaitForShutdown(cancelCtx context.CancelFunc, wg *sync.WaitGroup) error {
+	// setup signal handling
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+
+	// block until signal received
+	sig := <-signalChannel
+	s.Logger().Info("shutdown signal received", "signal", sig.String())
+
+	// cancel context to signal all gouroutines to stop
+	cancelCtx()
+
 	// close listener to stop accepting new connections
-	if s.socket != nil {
-		if err := s.socket.Close(); err != nil {
+	if s.Socket() != nil {
+		if err := s.Socket().Close(); err != nil {
 			s.log.Error("failed to close socket", "error", err)
 		}
 	}
 
+	// close connection channel to stop processing new connections
 	close(s.connections)
+
+	// wait for all goroutines to finish
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		s.Logger().Info("all goroutines have finished")
+		return nil
+	case <-time.After(time.Duration(s.Config().ShutdownTimeoutSeconds) * time.Second):
+		s.Logger().Warn("shutdown timeout reached, forcing exit")
+		return fmt.Errorf("shutdown timeout reached")
+	}
 }
