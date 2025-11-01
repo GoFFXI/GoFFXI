@@ -65,8 +65,8 @@ func (s *AuthServer) handleConnection(conn net.Conn) {
 		logger.Debug("detected client version", "version", clientVersion)
 		if !s.clientVersionIsValid(clientVersion) {
 			logger.Error("client version mismatch - disconnecting", "got", clientVersion)
-			conn.Write([]byte{OpErrorInvalidClientVersion})
-			conn.Close()
+			_, _ = conn.Write([]byte{OpErrorInvalidClientVersion})
+			_ = conn.Close()
 			return
 		}
 

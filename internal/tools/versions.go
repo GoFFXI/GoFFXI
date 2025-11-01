@@ -5,15 +5,15 @@ import (
 	"strings"
 )
 
-func GetVersionsFromString(versions string) (int, int, int) {
+func GetVersionsFromString(versions string) (major, minor, patch int) {
 	parts := strings.Split(strings.TrimSpace(versions), ".")
 	if len(parts) != 3 {
 		return 0, 0, 0
 	}
 
-	major, _ := strconv.Atoi(parts[0])
-	minor, _ := strconv.Atoi(parts[1])
-	patch, _ := strconv.Atoi(parts[2])
+	major, _ = strconv.Atoi(parts[0])
+	minor, _ = strconv.Atoi(parts[1])
+	patch, _ = strconv.Atoi(parts[2])
 
 	return major, minor, patch
 }

@@ -13,4 +13,6 @@ func (s *AuthServer) opChangePassword(logger *slog.Logger, username, password st
 	newPassword := tools.BytesToString(buffer, 0x40, 32)
 	newPassword = tools.StripStringUnicode(newPassword)
 	_ = newPassword
+	_ = username
+	_ = password
 }
