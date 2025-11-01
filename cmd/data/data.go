@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/GoFFXI/login-server/internal/config"
+	"github.com/GoFFXI/login-server/internal/database/migrations"
 	"github.com/GoFFXI/login-server/internal/server"
 )
 
@@ -35,6 +36,16 @@ func Run(cfg *config.Config, logger *slog.Logger) error {
 	// connect to NATS server
 	if err = dataServer.CreateNATSConnection(); err != nil {
 		return fmt.Errorf("failed to connect to NATS: %w", err)
+	}
+
+	// connect to database
+	if err = dataServer.CreateDBConnection(ctx); err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// run database migrations
+	if err = migrations.Migrate(ctx, dataServer.DB().BunDB()); err != nil {
+		return fmt.Errorf("failed to run database migrations: %w", err)
 	}
 
 	//nolint:errcheck // socket will be closed on shutdown

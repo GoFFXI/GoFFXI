@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/GoFFXI/login-server/internal/config"
+	"github.com/GoFFXI/login-server/internal/database"
 	"github.com/nats-io/nats.go"
 )
 
@@ -24,6 +25,7 @@ type Server struct {
 	connections chan net.Conn
 	cfg         *config.Config
 	natsConn    *nats.Conn
+	db          *database.DBImpl
 }
 
 func NewServer(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*Server, error) {
@@ -31,14 +33,14 @@ func NewServer(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*S
 	var cert tls.Certificate
 	var err error
 
-	if cfg.AuthServerTLSCertPath != "" && cfg.AuthServerTLSKeyPath != "" {
+	if cfg.ServerTLSCertPath != "" && cfg.ServerTLSKeyPath != "" {
 		// start with TLS
-		cert, err = tls.LoadX509KeyPair(cfg.AuthServerTLSCertPath, cfg.AuthServerTLSKeyPath)
+		cert, err = tls.LoadX509KeyPair(cfg.ServerTLSCertPath, cfg.ServerTLSKeyPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load TLS certificates: %w", err)
 		}
 
-		logger.Debug("TLS certificates loaded", "certPath", cfg.AuthServerTLSCertPath, "keyPath", cfg.AuthServerTLSKeyPath)
+		logger.Info("TLS certificates loaded", "certPath", cfg.ServerTLSCertPath, "keyPath", cfg.ServerTLSKeyPath)
 
 		tlsConfig := &tls.Config{
 			MinVersion:   tls.VersionTLS12,
@@ -85,6 +87,10 @@ func (s *Server) Socket() net.Listener {
 
 func (s *Server) NATS() *nats.Conn {
 	return s.natsConn
+}
+
+func (s *Server) DB() *database.DBImpl {
+	return s.db
 }
 
 func (s *Server) ProcessConnections(ctx context.Context, wg *sync.WaitGroup, handler ConnectionHandler) {
@@ -191,43 +197,4 @@ func (s *Server) WaitForShutdown(cancelCtx context.CancelFunc, wg *sync.WaitGrou
 		s.Logger().Warn("shutdown timeout reached, forcing exit")
 		return fmt.Errorf("shutdown timeout reached")
 	}
-}
-
-func (s *Server) CreateNATSConnection() error {
-	hostname, _ := os.Hostname()
-
-	// create a new NATS connection
-	options := []nats.Option{
-		nats.Name(fmt.Sprintf("%s%s", s.Config().NATSClientPrefix, hostname)),
-		nats.MaxReconnects(-1),
-		nats.ReconnectWait(2 * time.Second),
-		nats.ReconnectBufSize(s.Config().NATSOutgoingBufferSize),
-		nats.DisconnectErrHandler(s.OnNATSDisconnected),
-		nats.ReconnectHandler(s.OnNATSReconnected),
-		nats.ClosedHandler(s.OnNATSClosed),
-	}
-
-	// connect to NATS server
-	nc, err := nats.Connect(s.Config().NATSURL, options...)
-	if err != nil {
-		return err
-	}
-
-	s.natsConn = nc
-	return nil
-}
-
-func (s *Server) OnNATSDisconnected(_ *nats.Conn, err error) {
-	s.Logger().Warn("NATS disconnected", "error", err)
-	s.natsConn = nil
-}
-
-func (s *Server) OnNATSReconnected(nc *nats.Conn) {
-	s.Logger().Info("NATS reconnected")
-	s.natsConn = nc
-}
-
-func (s *Server) OnNATSClosed(_ *nats.Conn) {
-	s.Logger().Info("NATS connection permanently closed")
-	s.natsConn = nil
 }

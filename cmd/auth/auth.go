@@ -11,19 +11,21 @@ import (
 	"time"
 
 	"github.com/GoFFXI/login-server/internal/config"
+	"github.com/GoFFXI/login-server/internal/database/migrations"
 	"github.com/GoFFXI/login-server/internal/server"
 	"github.com/GoFFXI/login-server/internal/tools"
 )
 
 const (
-	OpResponseFail          = 0x00
-	OpResponseSuccess       = 0x01
-	OpErrorOccurred         = 0x02
-	OpRequestAttemptLogin   = 0x10
-	OpRequestCreateAccount  = 0x20
-	OpRequestChangePassword = 0x30
+	ResponseFail          = 0x00
+	ResponseSuccess       = 0x01
+	ResponseErrorOccurred = 0x02
 
-	OpErrorInvalidClientVersion = 0x0B
+	RequestAttemptLogin   = 0x10
+	RequestCreateAccount  = 0x20
+	RequestChangePassword = 0x30
+
+	ErrorInvalidClientVersion = 0x0B
 )
 
 type AuthServer struct {
@@ -51,6 +53,16 @@ func Run(cfg *config.Config, logger *slog.Logger) error {
 	// connect to NATS server
 	if err = authServer.CreateNATSConnection(); err != nil {
 		return fmt.Errorf("failed to connect to NATS: %w", err)
+	}
+
+	// connect to database
+	if err = authServer.CreateDBConnection(ctx); err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// run database migrations
+	if err = migrations.Migrate(ctx, authServer.DB().BunDB()); err != nil {
+		return fmt.Errorf("failed to run database migrations: %w", err)
 	}
 
 	//nolint:errcheck // socket will be closed on shutdown
@@ -113,17 +125,17 @@ func (s *AuthServer) handleConnection(ctx context.Context, conn net.Conn) {
 		logger.Debug("detected client version", "version", clientVersion)
 		if !s.clientVersionIsValid(clientVersion) {
 			logger.Error("client version mismatch - disconnecting", "got", clientVersion)
-			_, _ = conn.Write([]byte{OpErrorInvalidClientVersion})
+			_, _ = conn.Write([]byte{ErrorInvalidClientVersion})
 			_ = conn.Close()
 			return
 		}
 
 		switch opCode {
-		case OpRequestAttemptLogin:
+		case RequestAttemptLogin:
 			s.opAttemptLogin(logger, username, password)
-		case OpRequestCreateAccount:
+		case RequestCreateAccount:
 			s.opCreateAccount(logger, username, password)
-		case OpRequestChangePassword:
+		case RequestChangePassword:
 			s.opChangePassword(logger, username, password, buffer)
 		}
 	}

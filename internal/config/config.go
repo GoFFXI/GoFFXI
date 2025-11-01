@@ -32,11 +32,17 @@ type Config struct {
 	// ServerReadTimeoutSeconds is the number of seconds before a read from a client times out
 	ServerReadTimeoutSeconds int `env:"SERVER_READ_TIMEOUT_SECONDS" default:"15"`
 
-	// AuthServerTLSCertPath is the path to the TLS certificate for the auth server
-	AuthServerTLSCertPath string `env:"AUTH_SERVER_TLS_CERT_PATH" default:""`
+	// ServerTLSCertPath is the path to the TLS certificate for the server
+	ServerTLSCertPath string `env:"SERVER_TLS_CERT_PATH" default:""`
 
-	// AuthServerTLSKeyPath is the path to the TLS key for the auth server
-	AuthServerTLSKeyPath string `env:"AUTH_SERVER_TLS_KEY_PATH" default:""`
+	// ServerTLSKeyPath is the path to the TLS key for the server
+	ServerTLSKeyPath string `env:"SERVER_TLS_KEY_PATH" default:""`
+
+	// DBConnectionString is the Postgres connection string for the database
+	DBConnectionString string `env:"DB_CONNECTION_STRING" default:"root:password@tcp(localhost:3306)/mydb?parseTime=true"`
+
+	// DBQueryLogLevel is the level of logs to output for all database queries (debug|info)
+	DBQueryLogLevel string `env:"DB_QUERY_LOG_LEVEL" default:"debug"`
 
 	// XILoaderVersion is the version of the XI Loader to use
 	XILoaderVersion string `env:"XI_LOADER_VERSION" default:"1.0.0"`
