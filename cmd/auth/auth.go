@@ -100,6 +100,7 @@ func (s *AuthServer) acceptConnections() {
 		}
 
 		remoteAddr := conn.RemoteAddr().String()
+		// todo: check if this IP is banned before proceeding
 		s.Logger().Info("new connection accepted", "client", remoteAddr)
 
 		// add connection to channel for processing
@@ -116,28 +117,6 @@ func (s *AuthServer) acceptConnections() {
 			_ = conn.Close()
 		}
 	}
-}
-
-func (s *AuthServer) handleConnection(conn net.Conn) {
-	//nolint:errcheck // closing connection
-	defer conn.Close()
-
-	clientAddr := conn.RemoteAddr().String()
-	s.Logger().Info("processing connection", "client", clientAddr)
-
-	// set read/write timeout for the connection
-	_ = conn.SetDeadline(time.Now().Add(time.Duration(s.Config().ServerReadTimeoutSeconds) * time.Second))
-
-	// // connection handling loop
-	// for {
-	// 	select {
-	// 	case <-s.ctx.Done():
-	// 		return
-	// 	default:
-	// 	}
-
-	// 	// todo: read data from the client
-	// }
 }
 
 func (s *AuthServer) waitForShutdown() error {
