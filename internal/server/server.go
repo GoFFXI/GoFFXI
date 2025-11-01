@@ -34,6 +34,8 @@ func NewServer(ctx context.Context, cfg *config.Config, logger *slog.Logger, nc 
 			return nil, fmt.Errorf("failed to load TLS certificates: %w", err)
 		}
 
+		logger.Debug("TLS certificates loaded", "certPath", cfg.AuthServerTLSCertPath, "keyPath", cfg.AuthServerTLSKeyPath)
+
 		tlsConfig := &tls.Config{
 			MinVersion:   tls.VersionTLS12,
 			Certificates: []tls.Certificate{cert},
