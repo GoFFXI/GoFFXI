@@ -13,7 +13,6 @@ import (
 	"github.com/GoFFXI/login-server/cmd/view"
 	"github.com/GoFFXI/login-server/internal/config"
 	"github.com/joho/godotenv"
-	"github.com/nats-io/nats.go"
 	"go.uber.org/automaxprocs/maxprocs"
 )
 
@@ -55,33 +54,24 @@ func main() {
 
 	switch role {
 	case "auth":
-		nc := getNATSConnection(&cfg, logger)
-
 		logger = logger.With("role", "auth")
 		logger.Info("starting login-server...")
-		if err = auth.Run(&cfg, logger, nc); err != nil {
+		if err = auth.Run(&cfg, logger); err != nil {
 			logger.Error("failed to start login-server", "error", err)
-			nc.Close()
 			os.Exit(1)
 		}
 	case "data":
-		nc := getNATSConnection(&cfg, logger)
-
 		logger = logger.With("role", "data")
 		logger.Info("starting login-server...")
-		if err = data.Run(&cfg, logger, nc); err != nil {
+		if err = data.Run(&cfg, logger); err != nil {
 			logger.Error("failed to start login-server", "error", err)
-			nc.Close()
 			os.Exit(1)
 		}
 	case "view":
-		nc := getNATSConnection(&cfg, logger)
-
 		logger = logger.With("role", "view")
 		logger.Info("starting login-server...")
-		if err = view.Run(&cfg, logger, nc); err != nil {
+		if err = view.Run(&cfg, logger); err != nil {
 			logger.Error("failed to start login-server", "error", err)
-			nc.Close()
 			os.Exit(1)
 		}
 	default:
@@ -89,17 +79,6 @@ func main() {
 		printUsage()
 		os.Exit(1)
 	}
-}
-
-func getNATSConnection(cfg *config.Config, logger *slog.Logger) *nats.Conn {
-	// setup a connection to the nats server
-	nc, err := nats.Connect(cfg.NATSURL)
-	if err != nil {
-		logger.Error("failed to connect to NATS server", "error", err)
-		os.Exit(1)
-	}
-
-	return nc
 }
 
 func handleFlags() string {

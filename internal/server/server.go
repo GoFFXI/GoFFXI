@@ -21,12 +21,12 @@ type ConnectionHandler func(ctx context.Context, conn net.Conn)
 type Server struct {
 	socket      net.Listener
 	log         *slog.Logger
-	nc          *nats.Conn
 	connections chan net.Conn
 	cfg         *config.Config
+	natsConn    *nats.Conn
 }
 
-func NewServer(ctx context.Context, cfg *config.Config, logger *slog.Logger, nc *nats.Conn) (*Server, error) {
+func NewServer(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*Server, error) {
 	var socket net.Listener
 	var cert tls.Certificate
 	var err error
@@ -65,7 +65,6 @@ func NewServer(ctx context.Context, cfg *config.Config, logger *slog.Logger, nc 
 		socket:      socket,
 		log:         logger,
 		cfg:         cfg,
-		nc:          nc,
 		connections: make(chan net.Conn, cfg.MaxServerConnections),
 	}
 
@@ -80,12 +79,12 @@ func (s *Server) Logger() *slog.Logger {
 	return s.log
 }
 
-func (s *Server) NATS() *nats.Conn {
-	return s.nc
-}
-
 func (s *Server) Socket() net.Listener {
 	return s.socket
+}
+
+func (s *Server) NATS() *nats.Conn {
+	return s.natsConn
 }
 
 func (s *Server) ProcessConnections(ctx context.Context, wg *sync.WaitGroup, handler ConnectionHandler) {
@@ -192,4 +191,43 @@ func (s *Server) WaitForShutdown(cancelCtx context.CancelFunc, wg *sync.WaitGrou
 		s.Logger().Warn("shutdown timeout reached, forcing exit")
 		return fmt.Errorf("shutdown timeout reached")
 	}
+}
+
+func (s *Server) CreateNATSConnection() error {
+	hostname, _ := os.Hostname()
+
+	// create a new NATS connection
+	options := []nats.Option{
+		nats.Name(fmt.Sprintf("%s-%s", s.Config().NATSClientName, hostname)),
+		nats.MaxReconnects(-1),
+		nats.ReconnectWait(2 * time.Second),
+		nats.ReconnectBufSize(s.Config().NATSOutgoingBufferSize),
+		nats.DisconnectErrHandler(s.OnNATSDisconnected),
+		nats.ReconnectHandler(s.OnNATSReconnected),
+		nats.ClosedHandler(s.OnNATSClosed),
+	}
+
+	// connect to NATS server
+	nc, err := nats.Connect(s.Config().NATSURL, options...)
+	if err != nil {
+		return err
+	}
+
+	s.natsConn = nc
+	return nil
+}
+
+func (s *Server) OnNATSDisconnected(_ *nats.Conn, err error) {
+	s.Logger().Warn("NATS disconnected", "error", err)
+	s.natsConn = nil
+}
+
+func (s *Server) OnNATSReconnected(nc *nats.Conn) {
+	s.Logger().Info("NATS reconnected")
+	s.natsConn = nc
+}
+
+func (s *Server) OnNATSClosed(_ *nats.Conn) {
+	s.Logger().Info("NATS connection permanently closed")
+	s.natsConn = nil
 }

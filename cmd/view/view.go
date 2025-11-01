@@ -9,14 +9,13 @@ import (
 
 	"github.com/GoFFXI/login-server/internal/config"
 	"github.com/GoFFXI/login-server/internal/server"
-	"github.com/nats-io/nats.go"
 )
 
 type ViewServer struct {
 	*server.Server
 }
 
-func Run(cfg *config.Config, logger *slog.Logger, nc *nats.Conn) error {
+func Run(cfg *config.Config, logger *slog.Logger) error {
 	// setup wait group for goroutines
 	var wg sync.WaitGroup
 
@@ -24,13 +23,18 @@ func Run(cfg *config.Config, logger *slog.Logger, nc *nats.Conn) error {
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	defer cancelCtx()
 
-	baseServer, err := server.NewServer(ctx, cfg, logger, nc)
+	baseServer, err := server.NewServer(ctx, cfg, logger)
 	if err != nil {
 		return fmt.Errorf("failed to create base server: %w", err)
 	}
 
 	viewServer := &ViewServer{
 		Server: baseServer,
+	}
+
+	// connect to NATS server
+	if err = viewServer.CreateNATSConnection(); err != nil {
+		return fmt.Errorf("failed to connect to NATS: %w", err)
 	}
 
 	//nolint:errcheck // socket will be closed on shutdown

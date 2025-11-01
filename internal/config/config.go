@@ -11,8 +11,14 @@ type Config struct {
 	// AccountCreationEnabled specifies whether account creation is enabled
 	AccountCreationEnabled bool `env:"ACCOUNT_CREATION_ENABLED" default:"true"`
 
+	// NATSClientName is the name to use for the NATS client connection
+	NATSClientName string `env:"NATS_CLIENT_NAME" default:"GoFFXI Login Server"`
+
 	// NATSURL is the URL (with port) of the NATS server
 	NATSURL string `env:"NATS_URL" default:"nats://localhost:4222"`
+
+	// NATSOutgoingBufferSize is the size of the outgoing buffer for NATS connections
+	NATSOutgoingBufferSize int `env:"NATS_OUTGOING_BUFFER_SIZE" default:"8388608"` // 8MB
 
 	// ServerPort is the port the server will listen on
 	ServerPort int `env:"SERVER_PORT" default:"54231"`
