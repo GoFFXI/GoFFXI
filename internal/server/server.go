@@ -198,7 +198,7 @@ func (s *Server) CreateNATSConnection() error {
 
 	// create a new NATS connection
 	options := []nats.Option{
-		nats.Name(fmt.Sprintf("%s-%s", s.Config().NATSClientName, hostname)),
+		nats.Name(fmt.Sprintf("%s%s", s.Config().NATSClientPrefix, hostname)),
 		nats.MaxReconnects(-1),
 		nats.ReconnectWait(2 * time.Second),
 		nats.ReconnectBufSize(s.Config().NATSOutgoingBufferSize),

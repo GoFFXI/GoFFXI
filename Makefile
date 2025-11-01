@@ -53,19 +53,19 @@ build-windows:
 .PHONY: run-auth
 run-auth: build
 	@echo "Starting auth server..."
-	@SERVER_PORT=54231 NATS_CLIENT_NAME="auth" $(BUILD_DIR)/$(BINARY_NAME) --role=auth
+	@SERVER_PORT=54231 NATS_CLIENT_PREFIX="auth-" $(BUILD_DIR)/$(BINARY_NAME) --role=auth
 
 # Run the data server
 .PHONY: run-data
 run-data: build
 	@echo "Starting data server..."
-	@SERVER_PORT=54230 NATS_CLIENT_NAME="data" $(BUILD_DIR)/$(BINARY_NAME) --role=data
+	@SERVER_PORT=54230 NATS_CLIENT_PREFIX="data-" $(BUILD_DIR)/$(BINARY_NAME) --role=data
 
 # Run the view server
 .PHONY: run-view
 run-view: build
 	@echo "Starting view server..."
-	@SERVER_PORT=54001 NATS_CLIENT_NAME="view" $(BUILD_DIR)/$(BINARY_NAME) --role=view
+	@SERVER_PORT=54001 NATS_CLIENT_PREFIX="view-" $(BUILD_DIR)/$(BINARY_NAME) --role=view
 
 # Run tests
 .PHONY: test
