@@ -12,7 +12,7 @@ type Config struct {
 	AccountCreationEnabled bool `env:"ACCOUNT_CREATION_ENABLED" default:"true"`
 
 	// NATSClientPrefix is the prefix to use for the NATS client connection (prefix + hostname)
-	NATSClientPrefix string `env:"NATS_CLIENT_PREFIX" default:"GoFFXI Login Server"`
+	NATSClientPrefix string `env:"NATS_CLIENT_PREFIX" default:""`
 
 	// NATSURL is the URL (with port) of the NATS server
 	NATSURL string `env:"NATS_URL" default:"nats://localhost:4222"`
