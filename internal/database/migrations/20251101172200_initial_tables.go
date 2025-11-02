@@ -28,9 +28,25 @@ func init() {
 			return err
 		}
 
+		_, err = db.NewCreateTable().
+			Model((*AccountSession20251101172200)(nil)).
+			IfNotExists().
+			Exec(ctx)
+		if err != nil {
+			return err
+		}
+
 		return nil
 	}, func(ctx context.Context, db *bun.DB) error {
 		_, err := db.NewDropTable().
+			Model((*AccountSession20251101172200)(nil)).
+			IfExists().
+			Exec(ctx)
+		if err != nil {
+			return err
+		}
+
+		_, err = db.NewDropTable().
 			Model((*Account20251101172200)(nil)).
 			IfExists().
 			Exec(ctx)
@@ -45,9 +61,21 @@ func init() {
 type Account20251101172200 struct {
 	bun.BaseModel `bun:"table:accounts"`
 
-	ID       uint   `bun:"id,pk,autoincrement,type:int(10) unsigned"`
+	ID       uint32 `bun:"id,pk,autoincrement,type:int unsigned"`
 	Username string `bun:"type:varchar(16),notnull,unique"`
 	Password string `bun:"type:varchar(64),notnull"`
+
+	CreatedAt time.Time `bun:"type:timestamp,notnull,default:current_timestamp"`
+	UpdatedAt time.Time `bun:"type:timestamp,notnull,default:current_timestamp"`
+}
+
+type AccountSession20251101172200 struct {
+	bun.BaseModel `bun:"table:account_sessions"`
+
+	AccountID     uint32 `bun:"type:int unsigned"`
+	CharacterID   uint32 `bun:"type:int unsigned,notnull"`
+	SessionKey    string `bun:"type:varchar(32),notnull"`
+	ClientAddress uint32 `bun:"type:int unsigned,notnull"`
 
 	CreatedAt time.Time `bun:"type:timestamp,notnull,default:current_timestamp"`
 	UpdatedAt time.Time `bun:"type:timestamp,notnull,default:current_timestamp"`

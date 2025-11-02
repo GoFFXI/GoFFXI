@@ -90,6 +90,9 @@ func (s *AuthServer) handleConnection(ctx context.Context, conn net.Conn) {
 	// set read/write timeout for the connection
 	_ = conn.SetDeadline(time.Now().Add(time.Duration(s.Config().ServerReadTimeoutSeconds) * time.Second))
 
+	// buffer for reading data
+	buffer := make([]byte, 4096)
+
 	// connection handling loop
 	for {
 		// make sure we exit if the server is shutting down
@@ -100,7 +103,6 @@ func (s *AuthServer) handleConnection(ctx context.Context, conn net.Conn) {
 		}
 
 		// read data from client
-		buffer := make([]byte, 1024)
 		length, err := conn.Read(buffer)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
@@ -132,11 +134,11 @@ func (s *AuthServer) handleConnection(ctx context.Context, conn net.Conn) {
 
 		switch opCode {
 		case RequestAttemptLogin:
-			s.opAttemptLogin(logger, username, password)
+			s.opAttemptLogin(ctx, conn, username, password)
 		case RequestCreateAccount:
-			s.opCreateAccount(logger, username, password)
+			s.opCreateAccount(ctx, conn, username, password)
 		case RequestChangePassword:
-			s.opChangePassword(logger, username, password, buffer)
+			s.opChangePassword(ctx, conn, username, password, buffer)
 		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 
 type Queries interface {
 	AccountQueries
+	AccountSessionQueries
 }
 
 type Tx interface {

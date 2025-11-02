@@ -105,7 +105,9 @@ func (s *Server) ProcessConnections(ctx context.Context, wg *sync.WaitGroup, han
 			for {
 				select {
 				case conn := <-s.connections:
-					_ = conn.Close()
+					if conn != nil {
+						_ = conn.Close()
+					}
 				default:
 					return
 				}
@@ -150,12 +152,17 @@ func (s *Server) AcceptConnections(ctx context.Context, wg *sync.WaitGroup) {
 			s.Logger().Debug("connection queued for processing", "client", remoteAddr)
 		case <-ctx.Done():
 			// server is shutting down, close the connection
-			_ = conn.Close()
+			if conn != nil {
+				_ = conn.Close()
+			}
 			return
 		default:
 			// connection channel is full, reject the connection
 			s.Logger().Warn("connection queue full, rejecting connection", "client", remoteAddr)
-			_ = conn.Close()
+
+			if conn != nil {
+				_ = conn.Close()
+			}
 		}
 	}
 }

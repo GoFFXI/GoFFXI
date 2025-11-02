@@ -30,7 +30,7 @@ type Config struct {
 	ShutdownTimeoutSeconds int `env:"SHUTDOWN_TIMEOUT_SECONDS" default:"15"`
 
 	// ServerReadTimeoutSeconds is the number of seconds before a read from a client times out
-	ServerReadTimeoutSeconds int `env:"SERVER_READ_TIMEOUT_SECONDS" default:"15"`
+	ServerReadTimeoutSeconds int `env:"SERVER_READ_TIMEOUT_SECONDS" default:"1800"`
 
 	// ServerTLSCertPath is the path to the TLS certificate for the server
 	ServerTLSCertPath string `env:"SERVER_TLS_CERT_PATH" default:""`
@@ -43,6 +43,15 @@ type Config struct {
 
 	// DBQueryLogLevel is the level of logs to output for all database queries (debug|info)
 	DBQueryLogLevel string `env:"DB_QUERY_LOG_LEVEL" default:"debug"`
+
+	// PasswordSalt is the salt value used for password hashing
+	PasswordSalt string `env:"PASSWORD_SALT" default:"somesaltvalue"`
+
+	// MinUsernameLength is the minimum length for usernames
+	MinUsernameLength int `env:"MIN_USERNAME_LENGTH" default:"3"`
+
+	// MinPasswordLength is the minimum length for user passwords
+	MinPasswordLength int `env:"MIN_PASSWORD_LENGTH" default:"6"`
 
 	// XILoaderVersion is the version of the XI Loader to use
 	XILoaderVersion string `env:"XI_LOADER_VERSION" default:"1.0.0"`

@@ -1,11 +1,14 @@
 package database
 
 import (
+	"database/sql"
 	"errors"
 	"strings"
 
 	"github.com/go-sql-driver/mysql"
 )
+
+var ErrNotFound = errors.New("record not found")
 
 const (
 	ErrCodeDuplicateEntry       = 1062
@@ -26,4 +29,17 @@ func isViolationOfConstraint(err error, constraintName string) bool {
 	}
 
 	return false
+}
+
+func notFoundErrIfNoRowsAffected(res sql.Result) error {
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }
