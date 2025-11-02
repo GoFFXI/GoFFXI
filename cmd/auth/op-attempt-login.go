@@ -87,6 +87,9 @@ func (s *AuthServer) opAttemptLogin(ctx context.Context, conn net.Conn, username
 	// finally, write the response buffer to the connection
 	_, _ = conn.Write(responseBuffer.Bytes())
 	s.Logger().Debug("session token generated", "username", username, "sessionToken", sessionKey)
+
+	// close the connection after sending the response
+	_ = conn.Close()
 }
 
 func (s *AuthServer) generateSessionKey() string {
