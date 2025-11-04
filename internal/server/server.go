@@ -63,37 +63,37 @@ func NewServer(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*S
 
 	logger.Info("server listening", "address", socket.Addr().String())
 
-	srv := &Server{
+	srv := Server{
 		socket:      socket,
 		log:         logger,
 		cfg:         cfg,
 		connections: make(chan net.Conn, cfg.MaxServerConnections),
 	}
 
-	return srv, nil
+	return &srv, nil
 }
 
-func (s *Server) Config() *config.Config {
+func (s Server) Config() *config.Config {
 	return s.cfg
 }
 
-func (s *Server) Logger() *slog.Logger {
+func (s Server) Logger() *slog.Logger {
 	return s.log
 }
 
-func (s *Server) Socket() net.Listener {
+func (s Server) Socket() net.Listener {
 	return s.socket
 }
 
-func (s *Server) NATS() *nats.Conn {
+func (s Server) NATS() *nats.Conn {
 	return s.natsConn
 }
 
-func (s *Server) DB() *database.DBImpl {
+func (s Server) DB() *database.DBImpl {
 	return s.db
 }
 
-func (s *Server) ProcessConnections(ctx context.Context, wg *sync.WaitGroup, handler ConnectionHandler) {
+func (s Server) ProcessConnections(ctx context.Context, wg *sync.WaitGroup, handler ConnectionHandler) {
 	defer wg.Done()
 
 	for {
@@ -125,7 +125,7 @@ func (s *Server) ProcessConnections(ctx context.Context, wg *sync.WaitGroup, han
 	}
 }
 
-func (s *Server) AcceptConnections(ctx context.Context, wg *sync.WaitGroup) {
+func (s Server) AcceptConnections(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
@@ -167,7 +167,7 @@ func (s *Server) AcceptConnections(ctx context.Context, wg *sync.WaitGroup) {
 	}
 }
 
-func (s *Server) WaitForShutdown(cancelCtx context.CancelFunc, wg *sync.WaitGroup) error {
+func (s Server) WaitForShutdown(cancelCtx context.CancelFunc, wg *sync.WaitGroup) error {
 	// setup signal handling
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)

@@ -72,9 +72,9 @@ type Account20251101172200 struct {
 type AccountSession20251101172200 struct {
 	bun.BaseModel `bun:"table:account_sessions"`
 
-	AccountID     uint32 `bun:"type:int unsigned"`
-	CharacterID   uint32 `bun:"type:int unsigned,notnull"`
-	SessionKey    string `bun:"type:varchar(32),notnull"`
+	AccountID     uint32 `bun:"type:int unsigned,unique"`
+	CharacterID   uint32 `bun:"type:int unsigned,notnull,pk"`
+	SessionKey    string `bun:"type:varchar(16),notnull,unique"`
 	ClientAddress uint32 `bun:"type:int unsigned,notnull"`
 
 	CreatedAt time.Time `bun:"type:timestamp,notnull,default:current_timestamp"`

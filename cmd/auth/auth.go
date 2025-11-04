@@ -21,7 +21,6 @@ const (
 	ResponseSuccess       = 0x01
 	ResponseErrorOccurred = 0x02
 
-	RequestAttemptLogin   = 0x10
 	RequestCreateAccount  = 0x20
 	RequestChangePassword = 0x30
 
@@ -81,11 +80,11 @@ func Run(cfg *config.Config, logger *slog.Logger) error {
 }
 
 func (s *AuthServer) handleConnection(ctx context.Context, conn net.Conn) {
-	//nolint:errcheck // closing connection
-	defer conn.Close()
-
 	logger := s.Logger().With("client", conn.RemoteAddr().String())
 	logger.Info("processing connection")
+
+	//nolint:errcheck // connection will be closed at the end of this function
+	defer conn.Close()
 
 	// set read/write timeout for the connection
 	_ = conn.SetDeadline(time.Now().Add(time.Duration(s.Config().ServerReadTimeoutSeconds) * time.Second))
@@ -116,31 +115,38 @@ func (s *AuthServer) handleConnection(ctx context.Context, conn net.Conn) {
 			break
 		}
 
-		// parse the expected received data
-		request := buffer[:length]
-		username := tools.BytesToString(request, 0x09, 16)
-		password := tools.BytesToString(request, 0x19, 32)
-		clientVersion := tools.BytesToString(request, 0x61, 5)
-		opCode := tools.GetIntFromByteBuffer(request, 0x39)
-
-		// handle client version enforcement
-		logger.Debug("detected client version", "version", clientVersion)
-		if !s.clientVersionIsValid(clientVersion) {
-			logger.Error("client version mismatch - disconnecting", "got", clientVersion)
-			_, _ = conn.Write([]byte{ErrorInvalidClientVersion})
-			_ = conn.Close()
-			return
-		}
-
-		switch opCode {
-		case RequestAttemptLogin:
-			s.opAttemptLogin(ctx, conn, username, password)
-		case RequestCreateAccount:
-			s.opCreateAccount(ctx, conn, username, password)
-		case RequestChangePassword:
-			s.opChangePassword(ctx, conn, username, password, buffer)
+		if shouldExit := s.parseIncomingRequest(ctx, logger, conn, buffer[:length]); shouldExit {
+			break
 		}
 	}
+}
+
+func (s *AuthServer) parseIncomingRequest(ctx context.Context, logger *slog.Logger, conn net.Conn, request []byte) bool {
+	// parse the auth request header
+	header, err := NewRequestHeader(request)
+	if err != nil {
+		logger.Error("failed to parse auth request header", "error", err)
+		return true
+	}
+
+	// handle client version enforcement
+	logger.Debug("detected client version", "version", header.ClientVersion)
+	if !s.clientVersionIsValid(header.ClientVersion) {
+		logger.Error("client version mismatch - disconnecting", "got", header.ClientVersion)
+		_, _ = conn.Write([]byte{ErrorInvalidClientVersion})
+		return true
+	}
+
+	switch header.Command {
+	case RequestAttemptLogin:
+		return s.handleRequestAttemptLogin(ctx, conn, header.Username, header.Password)
+	case RequestCreateAccount:
+		s.handleRequestCreateAccount(ctx, conn, header.Username, header.Password)
+	case RequestChangePassword:
+		s.handleRequestChangePassword(ctx, conn, header.Username, header.Password, request)
+	}
+
+	return false
 }
 
 func (s *AuthServer) clientVersionIsValid(clientVersion string) bool {

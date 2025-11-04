@@ -17,8 +17,8 @@ const (
 	ErrorCreatingAccount         = 0x09
 )
 
-func (s *AuthServer) opCreateAccount(ctx context.Context, conn net.Conn, username, password string) {
-	s.Logger().Debug("processing create account request")
+func (s *AuthServer) handleRequestCreateAccount(ctx context.Context, conn net.Conn, username, password string) {
+	s.Logger().Info("processing create account request")
 
 	// check if account creation is enabled
 	if !s.Config().AccountCreationEnabled {

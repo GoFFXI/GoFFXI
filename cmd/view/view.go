@@ -2,7 +2,9 @@ package view
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"sync"
@@ -63,10 +65,84 @@ func Run(cfg *config.Config, logger *slog.Logger) error {
 	return viewServer.WaitForShutdown(cancelCtx, &wg)
 }
 
-func (s *ViewServer) handleConnection(_ context.Context, conn net.Conn) {
-	//nolint:errcheck // closing connection
-	defer conn.Close()
-
+func (s ViewServer) handleConnection(ctx context.Context, conn net.Conn) {
 	logger := s.Logger().With("client", conn.RemoteAddr().String())
-	logger.Info("processing connection")
+	logger.Info("new client connection established")
+
+	// create a new session for this connection
+	sessionCtx := sessionContext{
+		ctx:    ctx,
+		conn:   conn,
+		server: &s,
+		logger: logger,
+	}
+	defer sessionCtx.Close()
+
+	// connection handling loop
+	for {
+		// make sure we exit if the server is shutting down
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		// buffer for reading data
+		buffer := make([]byte, 4096)
+
+		// read data from client
+		length, err := conn.Read(buffer)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				logger.Info("client disconnected")
+				break
+			} else if errors.Is(err, net.ErrClosed) {
+				break
+			}
+
+			logger.Error("error reading from connection", "error", err)
+			break
+		}
+
+		if shouldExit := s.parseIncomingRequest(&sessionCtx, buffer[:length]); shouldExit {
+			break
+		}
+	}
+}
+
+func (s ViewServer) parseIncomingRequest(sessionCtx *sessionContext, request []byte) bool {
+	header, err := NewRequestHeader(request)
+	if err != nil {
+		sessionCtx.logger.Error("failed to parse request header", "error", err)
+		return true
+	}
+
+	// attempt to lookup the account session
+	sessionKey := string(header.Identifier[:])
+	sessionCtx.logger.Info("looking up session", "sessionKey", sessionKey, "opCode", header.Command)
+	accountSession, err := s.DB().GetAccountSessionBySessionKey(sessionCtx.ctx, sessionKey)
+	if err != nil {
+		// this shouldn't happen normally, log and close the connection
+		sessionCtx.logger.Error("failed to lookup account session", "session_key", header.Identifier, "error", err)
+		return true
+	}
+
+	// make sure this session context has subscriptions set up
+	// this should only be done once per session
+	if err = sessionCtx.SetupSubscriptions(accountSession.SessionKey); err != nil {
+		sessionCtx.logger.Error("failed to setup subscriptions", "error", err)
+		return true
+	}
+
+	// now, handle the request based on the command
+	switch header.Command {
+	case CommandRequestLobbyLogin:
+		s.handleRequestLobbyLogin(sessionCtx, request)
+	case CommandRequestGetCharacter:
+		s.handleRequestGetCharacter(sessionCtx, &accountSession, request)
+	case CommandRequestQueryWorldList:
+		s.handleRequestWorldList(sessionCtx, request)
+	}
+
+	return false
 }

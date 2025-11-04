@@ -15,9 +15,9 @@ const (
 var ErrAccountSessionNotUnique = errors.New("account session not unique")
 
 type AccountSession struct {
-	AccountID     uint32 `bun:"type:int unsigned"`
-	CharacterID   uint32 `bun:"type:int unsigned,notnull"`
-	SessionKey    string `bun:"type:varchar(32),notnull"`
+	AccountID     uint32 `bun:"type:int unsigned,unique"`
+	CharacterID   uint32 `bun:"type:int unsigned,notnull,pk"`
+	SessionKey    string `bun:"type:varchar(16),notnull,unique"`
 	ClientAddress uint32 `bun:"type:int unsigned,notnull"`
 
 	CreatedAt time.Time `bun:"type:timestamp,notnull,default:current_timestamp"`
@@ -30,15 +30,15 @@ func (m *AccountSession) BeforeUpdate(_ context.Context, _ bun.Query) error {
 }
 
 type AccountSessionQueries interface {
-	GetAccountSessionBySessionHash(ctx context.Context, sessionHash [16]byte) (AccountSession, error)
+	GetAccountSessionBySessionKey(ctx context.Context, sessionKey string) (AccountSession, error)
 	CreateAccountSession(ctx context.Context, accountSession *AccountSession) (AccountSession, error)
-	DeleteAccountSession(ctx context.Context, id uint) error
+	DeleteAccountSession(ctx context.Context, accountID uint32) error
 }
 
-func (q *queriesImpl) GetAccountSessionBySessionHash(ctx context.Context, sessionHash [16]byte) (AccountSession, error) {
+func (q *queriesImpl) GetAccountSessionBySessionKey(ctx context.Context, sessionKey string) (AccountSession, error) {
 	var accountSession AccountSession
 
-	err := q.db.NewSelect().Model(&accountSession).Where("session_key = ?", sessionHash).Scan(ctx)
+	err := q.db.NewSelect().Model(&accountSession).Where("session_key = ?", sessionKey).Scan(ctx)
 	if err != nil {
 		return AccountSession{}, err
 	}
@@ -59,7 +59,7 @@ func (q *queriesImpl) CreateAccountSession(ctx context.Context, accountSession *
 	return *accountSession, nil
 }
 
-func (q *queriesImpl) DeleteAccountSession(ctx context.Context, id uint) error {
-	_, err := q.db.NewDelete().Model((*AccountSession)(nil)).Where("account_id = ?", id).Exec(ctx)
+func (q *queriesImpl) DeleteAccountSession(ctx context.Context, accountID uint32) error {
+	_, err := q.db.NewDelete().Model((*AccountSession)(nil)).Where("account_id = ?", accountID).Exec(ctx)
 	return err
 }

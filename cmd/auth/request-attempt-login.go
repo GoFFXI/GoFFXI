@@ -3,7 +3,6 @@ package auth
 import (
 	"bytes"
 	"context"
-	"crypto/md5" //nolint:gosec // MD5 is used here for session key generation only
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
@@ -14,12 +13,35 @@ import (
 )
 
 const (
+	RequestAttemptLogin = 0x10
+
 	// For now, we're not going to enforce this particular error
 	// It's just here for reference in the future if we want to use it
 	ErrorAlreadyLoggedIn = 0x0A
 )
 
-func (s *AuthServer) opAttemptLogin(ctx context.Context, conn net.Conn, username, password string) {
+type ResponseAttemptLogin struct {
+	Status     uint8    // Status code (0x01 for success)
+	AccountID  uint32   // Account ID (Big-endian!)
+	SessionKey [16]byte // Session key/token (variable length)
+}
+
+func (r *ResponseAttemptLogin) Serialize() []byte {
+	buf := new(bytes.Buffer)
+
+	// Write status byte
+	buf.WriteByte(r.Status)
+
+	// Write account ID in BIG-ENDIAN (matching your original code)
+	_ = binary.Write(buf, binary.BigEndian, r.AccountID)
+
+	// Write session key
+	buf.Write(r.SessionKey[:])
+
+	return buf.Bytes()
+}
+
+func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Conn, username, password string) bool {
 	s.Logger().Info("attempting login", "username", username)
 
 	// attempt to lookup the account by username
@@ -27,26 +49,27 @@ func (s *AuthServer) opAttemptLogin(ctx context.Context, conn net.Conn, username
 	if err != nil {
 		s.Logger().Error("failed to get account", "error", err)
 		_, _ = conn.Write([]byte{ResponseFail})
-		return
+		return false
 	}
 
 	// compare the passwords using bcrypt
 	if err = bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(password)); err != nil {
 		s.Logger().Warn("invalid password", "username", username)
 		_, _ = conn.Write([]byte{ResponseFail})
-		return
+		return false
 	}
 
 	// generate a session token
 	s.Logger().Info("login successful", "username", username)
 	sessionKey := s.generateSessionKey()
+	s.Logger().Debug("session token generated", "username", username, "sessionToken", sessionKey)
 
 	// parse the client IP address
 	host, _, err := net.SplitHostPort(conn.RemoteAddr().String())
 	if err != nil {
 		s.Logger().Error("failed to parse client address", "error", err)
 		_, _ = conn.Write([]byte{ResponseErrorOccurred})
-		return
+		return false
 	}
 
 	// only support IPv4 for now
@@ -54,14 +77,14 @@ func (s *AuthServer) opAttemptLogin(ctx context.Context, conn net.Conn, username
 	if clientAddr == nil {
 		s.Logger().Error("failed to parse client IPv4 address", "address", host)
 		_, _ = conn.Write([]byte{ResponseErrorOccurred})
-		return
+		return false
 	}
 
 	// create the account session
 	accountSession := &database.AccountSession{
 		AccountID:     account.ID,
 		CharacterID:   0, // No character selected yet
-		SessionKey:    sessionKey,
+		SessionKey:    string(sessionKey[:]),
 		ClientAddress: binary.BigEndian.Uint32(clientAddr),
 	}
 
@@ -69,37 +92,31 @@ func (s *AuthServer) opAttemptLogin(ctx context.Context, conn net.Conn, username
 	if err != nil {
 		s.Logger().Error("failed to create account session", "error", err)
 		_, _ = conn.Write([]byte{ResponseErrorOccurred})
-		return
+		return false
 	}
 
-	// setup a new byte buffer
-	responseBuffer := bytes.Buffer{}
-	responseBuffer.WriteByte(ResponseSuccess)
-
-	// add the account ID to the response buffer
-	accountIDBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(accountIDBytes, account.ID)
-	responseBuffer.Write(accountIDBytes)
-
-	// add the session token to the response buffer
-	responseBuffer.Write([]byte(sessionKey))
+	response := &ResponseAttemptLogin{
+		Status:     ResponseSuccess,
+		AccountID:  account.ID,
+		SessionKey: sessionKey,
+	}
 
 	// finally, write the response buffer to the connection
-	_, _ = conn.Write(responseBuffer.Bytes())
-	s.Logger().Debug("session token generated", "username", username, "sessionToken", sessionKey)
+	_, _ = conn.Write(response.Serialize())
 
-	// close the connection after sending the response
-	_ = conn.Close()
+	return true
 }
 
-func (s *AuthServer) generateSessionKey() string {
-	// Generate a random session hash
-	randomBytes := make([]byte, 32)
+func (s *AuthServer) generateSessionKey() [16]byte {
+	// Generate a random 8-byte session key
+	randomBytes := make([]byte, 8)
 	_, _ = rand.Read(randomBytes)
 
-	// Create MD5 hash
-	//nolint:gosec // MD5 is used here for session key generation only
-	md5Hash := md5.Sum(randomBytes)
+	// Convert to hex string (8 bytes = 16 hex characters)
+	encoded := hex.EncodeToString(randomBytes)
 
-	return hex.EncodeToString(md5Hash[:])
+	var sessionKey [16]byte
+	copy(sessionKey[:], encoded)
+
+	return sessionKey
 }

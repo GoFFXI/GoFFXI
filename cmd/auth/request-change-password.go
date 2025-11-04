@@ -15,8 +15,8 @@ const (
 	ErrorChangingPassword = 0x07
 )
 
-func (s *AuthServer) opChangePassword(ctx context.Context, conn net.Conn, username, password string, buffer []byte) {
-	s.Logger().Debug("processing change password request")
+func (s *AuthServer) handleRequestChangePassword(ctx context.Context, conn net.Conn, username, password string, buffer []byte) {
+	s.Logger().Info("processing change password request")
 
 	// extract the newPassword from the buffer
 	newPassword := tools.BytesToString(buffer, 0x40, 32)
