@@ -14,7 +14,7 @@ const (
 
 // https://github.com/atom0s/XiPackets/blob/main/lobby/C2S_0x001F_RequestGetChr.md
 type RequestGetCharacter struct {
-	Password uint8
+	Password [16]byte
 }
 
 func NewRequestGetCharacter(data []byte) (*RequestGetCharacter, error) {
@@ -36,8 +36,9 @@ func NewRequestGetCharacter(data []byte) (*RequestGetCharacter, error) {
 	return request, nil
 }
 
-func (s *ViewServer) handleRequestGetCharacter(sessionContext *sessionContext, accountSession *database.AccountSession, request []byte) bool {
-	logger := sessionContext.logger.With("request", "get-character")
+func (s *ViewServer) handleRequestGetCharacter(sessionCtx *sessionContext, accountSession *database.AccountSession, request []byte) bool {
+	logger := sessionCtx.logger.With("request", "get-character")
+	logger.Info("handling request")
 
 	_, err := NewRequestGetCharacter(request)
 	if err != nil {
@@ -47,6 +48,7 @@ func (s *ViewServer) handleRequestGetCharacter(sessionContext *sessionContext, a
 
 	// this is a bit of a weird one - the request should actually trigger the data server to send a success response (0x01)
 	// no player data is actually sent here, the data server handles that separately
+	logger.Info("instructing data server to generate character data")
 	_ = s.NATS().Publish(fmt.Sprintf("session.%s.data.send", accountSession.SessionKey), []byte{0x01})
 
 	return false

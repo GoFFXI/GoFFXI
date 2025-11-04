@@ -137,11 +137,11 @@ func (s ViewServer) parseIncomingRequest(sessionCtx *sessionContext, request []b
 	// now, handle the request based on the command
 	switch header.Command {
 	case CommandRequestLobbyLogin:
-		s.handleRequestLobbyLogin(sessionCtx, request)
+		return s.handleRequestLobbyLogin(sessionCtx, request)
 	case CommandRequestGetCharacter:
-		s.handleRequestGetCharacter(sessionCtx, &accountSession, request)
+		return s.handleRequestGetCharacter(sessionCtx, &accountSession, request)
 	case CommandRequestQueryWorldList:
-		s.handleRequestWorldList(sessionCtx, request)
+		return s.handleRequestWorldList(sessionCtx, request)
 	}
 
 	return false

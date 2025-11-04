@@ -132,8 +132,9 @@ func (r *ResponseLobbyLogin) Serialize() ([]byte, error) {
 }
 
 // https://github.com/atom0s/XiPackets/blob/main/lobby/C2S_0x0026_RequestLobbyLogin.md
-func (s *ViewServer) handleRequestLobbyLogin(sessionContext *sessionContext, request []byte) bool {
-	logger := sessionContext.logger.With("request", "lobby-login")
+func (s *ViewServer) handleRequestLobbyLogin(sessionCtx *sessionContext, request []byte) bool {
+	logger := sessionCtx.logger.With("request", "lobby-login")
+	logger.Info("handling request")
 
 	_, err := NewRequestLobbyLogin(request)
 	if err != nil {
@@ -158,7 +159,7 @@ func (s *ViewServer) handleRequestLobbyLogin(sessionContext *sessionContext, req
 
 	// Send the response packet
 	logger.Info("sending response")
-	_, err = sessionContext.conn.Write(responsePacket)
+	_, err = sessionCtx.conn.Write(responsePacket)
 	if err != nil {
 		logger.Error("failed to send response", "error", err)
 		return true

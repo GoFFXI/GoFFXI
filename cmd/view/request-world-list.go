@@ -11,7 +11,7 @@ import (
 
 const (
 	CommandRequestQueryWorldList = 0x0024
-	CommandResponseWorldList     = 0x23
+	CommandResponseWorldList     = 0x0023
 )
 
 // https://github.com/atom0s/XiPackets/blob/main/lobby/C2S_0x0024_RequestQueryWorldList.md
@@ -126,8 +126,9 @@ func (r *ResponseQueryWorldList) Serialize() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (s *ViewServer) handleRequestWorldList(sessionContext *sessionContext, request []byte) bool {
-	logger := sessionContext.logger.With("request", "query-world-list")
+func (s *ViewServer) handleRequestWorldList(sessionCtx *sessionContext, request []byte) bool {
+	logger := sessionCtx.logger.With("request", "query-world-list")
+	logger.Info("handling request")
 
 	_, err := NewRequestQueryWorldList(request)
 	if err != nil {
@@ -148,7 +149,7 @@ func (s *ViewServer) handleRequestWorldList(sessionContext *sessionContext, requ
 		return true
 	}
 
-	_, err = sessionContext.conn.Write(data)
+	_, err = sessionCtx.conn.Write(data)
 	if err != nil {
 		logger.Error("failed to send response", "error", err)
 		return true

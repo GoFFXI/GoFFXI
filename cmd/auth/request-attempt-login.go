@@ -42,32 +42,33 @@ func (r *ResponseAttemptLogin) Serialize() []byte {
 }
 
 func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Conn, username, password string) bool {
-	s.Logger().Info("attempting login", "username", username)
+	logger := s.Logger().With("request", "attempt-login")
+	logger.Info("handling request")
 
 	// attempt to lookup the account by username
 	account, err := s.DB().GetAccountByUsername(ctx, username)
 	if err != nil {
-		s.Logger().Error("failed to get account", "error", err)
+		logger.Error("failed to get account", "error", err)
 		_, _ = conn.Write([]byte{ResponseFail})
 		return false
 	}
 
 	// compare the passwords using bcrypt
 	if err = bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(password)); err != nil {
-		s.Logger().Warn("invalid password", "username", username)
+		logger.Warn("invalid password", "username", username)
 		_, _ = conn.Write([]byte{ResponseFail})
 		return false
 	}
 
 	// generate a session token
-	s.Logger().Info("login successful", "username", username)
+	logger.Info("login successful", "username", username)
 	sessionKey := s.generateSessionKey()
-	s.Logger().Debug("session token generated", "username", username, "sessionToken", sessionKey)
+	logger.Debug("session token generated", "username", username, "sessionToken", sessionKey)
 
 	// parse the client IP address
 	host, _, err := net.SplitHostPort(conn.RemoteAddr().String())
 	if err != nil {
-		s.Logger().Error("failed to parse client address", "error", err)
+		logger.Error("failed to parse client address", "error", err)
 		_, _ = conn.Write([]byte{ResponseErrorOccurred})
 		return false
 	}
@@ -75,7 +76,7 @@ func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Con
 	// only support IPv4 for now
 	clientAddr := net.ParseIP(host).To4()
 	if clientAddr == nil {
-		s.Logger().Error("failed to parse client IPv4 address", "address", host)
+		logger.Error("failed to parse client IPv4 address", "address", host)
 		_, _ = conn.Write([]byte{ResponseErrorOccurred})
 		return false
 	}
@@ -90,7 +91,7 @@ func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Con
 
 	_, err = s.DB().CreateAccountSession(ctx, accountSession)
 	if err != nil {
-		s.Logger().Error("failed to create account session", "error", err)
+		logger.Error("failed to create account session", "error", err)
 		_, _ = conn.Write([]byte{ResponseErrorOccurred})
 		return false
 	}

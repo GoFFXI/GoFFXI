@@ -10,17 +10,12 @@ import (
 	"sync"
 
 	"github.com/GoFFXI/login-server/internal/config"
-	"github.com/GoFFXI/login-server/internal/database"
 	"github.com/GoFFXI/login-server/internal/database/migrations"
 	"github.com/GoFFXI/login-server/internal/server"
-	"github.com/GoFFXI/login-server/internal/tools"
-	"github.com/nats-io/nats.go"
 )
 
 const (
-	RequestKeepXILoaderSpinning           = 0xFE
-	RequestNotifyLobbyOfCurrentSelections = 0xA2
-	RequestGetCharacterData               = 0xA1
+	CommandRequestKeepXILoaderSpinning = 0xFE
 )
 
 type DataServer struct {
@@ -74,9 +69,18 @@ func Run(cfg *config.Config, logger *slog.Logger) error {
 	return dataServer.WaitForShutdown(cancelCtx, &wg)
 }
 
-func (s *DataServer) handleConnection(ctx context.Context, conn net.Conn) {
+func (s DataServer) handleConnection(ctx context.Context, conn net.Conn) {
 	logger := s.Logger().With("client", conn.RemoteAddr().String())
 	logger.Info("processing connection")
+
+	// create a new session for this connection
+	sessionCtx := sessionContext{
+		ctx:    ctx,
+		conn:   conn,
+		server: &s,
+		logger: logger,
+	}
+	defer sessionCtx.Close()
 
 	// buffer for reading data
 	buffer := make([]byte, 4096)
@@ -104,57 +108,43 @@ func (s *DataServer) handleConnection(ctx context.Context, conn net.Conn) {
 			break
 		}
 
-		// parse the expected received data
-		request := buffer[:length]
-		opCode := tools.GetIntFromByteBuffer(request, 0)
-		sessionKey := tools.BytesToString(request, 12, 16)
-
-		// attempt to lookup the account session
-		logger.Info("looking up session", "sessionKey", sessionKey, "opCode", opCode)
-		accountSession, err := s.DB().GetAccountSessionBySessionKey(ctx, sessionKey)
-		if err != nil {
-			// this shouldn't happen normally, log and close the connection
-			logger.Error("failed to lookup account session", "session_key", sessionKey, "error", err)
-			_ = conn.Close()
-
-			return
-		}
-
-		// subscribe to session-related NATS messages
-		callback := (func(conn net.Conn, accountSession *database.AccountSession) func(msg *nats.Msg) {
-			// all of this hoopla is just to bind the conn & accountSession variables into the closure
-			return func(msg *nats.Msg) {
-				s.handleNATSSendRequest(conn, msg, accountSession)
-			}
-		})(conn, &accountSession)
-
-		_, err = s.NATS().Subscribe(fmt.Sprintf("session.%s.data.send", accountSession.SessionKey), callback)
-		if err != nil {
-			logger.Error("failed to subscribe to NATS", "error", err)
-			_ = conn.Close()
-			return
-		}
-
-		switch opCode {
-		case RequestKeepXILoaderSpinning:
-			logger.Debug("keeping XILoader spinning")
-			_, _ = conn.Write([]byte{})
-		case RequestNotifyLobbyOfCurrentSelections:
-			s.opNotifyLobbyOfCurrentSelection(ctx, conn, &accountSession, request)
-		case RequestGetCharacterData:
-			s.opGetCharacterData(ctx, conn, &accountSession, request)
+		if shouldExit := s.parseIncomingRequest(&sessionCtx, buffer[:length]); shouldExit {
+			break
 		}
 	}
 }
 
-func (s *DataServer) handleNATSSendRequest(conn net.Conn, msg *nats.Msg, _ *database.AccountSession) {
-	s.Logger().Info("received NATS message to send data to client", "length", len(msg.Data))
-	_ = msg.Ack()
-
-	// so far, we're only sending raw data back to the client
-	_, err := conn.Write(msg.Data)
+func (s DataServer) parseIncomingRequest(sessionCtx *sessionContext, request []byte) bool {
+	header, err := NewRequestHeader(request)
 	if err != nil {
-		s.Logger().Error("failed to write NATS data to connection", "error", err)
-		_ = conn.Close()
+		sessionCtx.logger.Error("failed to parse request header", "error", err)
+		return true
 	}
+
+	// attempt to lookup the account session
+	sessionKey := string(header.Identifier[:])
+	sessionCtx.logger.Info("looking up session", "sessionKey", sessionKey, "opCode", header.Command)
+	accountSession, err := s.DB().GetAccountSessionBySessionKey(sessionCtx.ctx, sessionKey)
+	if err != nil {
+		// this shouldn't happen normally, log and close the connection
+		sessionCtx.logger.Error("failed to lookup account session", "session_key", header.Identifier, "error", err)
+		return true
+	}
+
+	// make sure this session context has subscriptions set up
+	// this should only be done once per session
+	if err = sessionCtx.SetupSubscriptions(sessionKey); err != nil {
+		sessionCtx.logger.Error("failed to setup subscriptions", "error", err)
+		return true
+	}
+
+	switch header.Command {
+	case CommandRequestKeepXILoaderSpinning:
+		// this is just a keep-alive, respond with empty payload
+		_, _ = sessionCtx.conn.Write([]byte{})
+	case CommandRequestGetCharacters:
+		return s.handleRequestGetCharacters(sessionCtx, &accountSession, request)
+	}
+
+	return false
 }
