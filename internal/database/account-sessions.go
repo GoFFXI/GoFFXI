@@ -15,10 +15,10 @@ const (
 var ErrAccountSessionNotUnique = errors.New("account session not unique")
 
 type AccountSession struct {
-	AccountID     uint32 `bun:"type:int unsigned,unique"`
-	CharacterID   uint32 `bun:"type:int unsigned,notnull,pk"`
-	SessionKey    string `bun:"type:varchar(16),notnull,unique"`
-	ClientAddress uint32 `bun:"type:int unsigned,notnull"`
+	AccountID   uint32 `bun:"type:int unsigned,unique"`
+	CharacterID uint32 `bun:"type:int unsigned,notnull,pk"`
+	SessionKey  string `bun:"type:varchar(16),notnull,unique"`
+	ClientIP    uint32 `bun:"type:int unsigned,notnull"`
 
 	CreatedAt time.Time `bun:"type:timestamp,notnull,default:current_timestamp"`
 	UpdatedAt time.Time `bun:"type:timestamp,notnull,default:current_timestamp"`

@@ -7,8 +7,14 @@ import (
 )
 
 type Queries interface {
+	AccountBanQueries
+	AccountIPRecordQueries
 	AccountQueries
 	AccountSessionQueries
+	CharacterJobsQueries
+	CharacterLooksQueries
+	CharacterQueries
+	CharacterStatsQueries
 }
 
 type Tx interface {

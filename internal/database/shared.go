@@ -8,7 +8,10 @@ import (
 	"github.com/go-sql-driver/mysql"
 )
 
-var ErrNotFound = errors.New("record not found")
+var (
+	ErrNotFound             = errors.New("record not found")
+	ErrCharacterIDNotUnique = errors.New("character id not unique")
+)
 
 const (
 	ErrCodeDuplicateEntry       = 1062

@@ -53,6 +53,20 @@ func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Con
 		return false
 	}
 
+	// check if the account is banned
+	isBanned, err := s.DB().IsAccountBanned(ctx, account.ID)
+	if err != nil {
+		logger.Error("failed to check if account is banned", "error", err)
+		_, _ = conn.Write([]byte{ResponseErrorOccurred})
+		return false
+	}
+
+	if isBanned {
+		logger.Warn("account is banned", "username", username)
+		_, _ = conn.Write([]byte{ResponseFail})
+		return false
+	}
+
 	// compare the passwords using bcrypt
 	if err = bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(password)); err != nil {
 		logger.Warn("invalid password", "username", username)
@@ -73,7 +87,7 @@ func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Con
 		return false
 	}
 
-	// only support IPv4 for now
+	// extract the IPv4 address
 	clientAddr := net.ParseIP(host).To4()
 	if clientAddr == nil {
 		logger.Error("failed to parse client IPv4 address", "address", host)
@@ -83,10 +97,10 @@ func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Con
 
 	// create the account session
 	accountSession := &database.AccountSession{
-		AccountID:     account.ID,
-		CharacterID:   0, // No character selected yet
-		SessionKey:    string(sessionKey[:]),
-		ClientAddress: binary.BigEndian.Uint32(clientAddr),
+		AccountID:   account.ID,
+		CharacterID: 0, // No character selected yet
+		SessionKey:  string(sessionKey[:]),
+		ClientIP:    binary.BigEndian.Uint32(clientAddr),
 	}
 
 	_, err = s.DB().CreateAccountSession(ctx, accountSession)
