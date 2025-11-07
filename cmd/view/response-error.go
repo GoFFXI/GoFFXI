@@ -12,13 +12,13 @@ import (
 const (
 	CommandResponseError = 0x0004
 
-	ErrorCodeUnableToConnectToWorldServer uint32 = 305
-	ErrorCodeCharacterNameInvalid         uint32 = 313
-	ErrorCodeCharacterAlreadyLoggedIn     uint32 = 201
-	ErrorFailedToRegisterWithNameServer   uint32 = 314
-	ErrorIncorrectCharacterParameters     uint32 = 321
-	ErrorGameDataUpdated                  uint32 = 331
-	ErrorUnableToConnectToLobbyServer     uint32 = 332
+	ErrorCodeUnableToConnectToWorldServer   uint32 = 305
+	ErrorCodeCharacterNameInvalid           uint32 = 313
+	ErrorCodeCharacterAlreadyLoggedIn       uint32 = 201
+	ErrorCodeFailedToRegisterWithNameServer uint32 = 314
+	ErrorCodeIncorrectCharacterParameters   uint32 = 321
+	ErrorCodeGameDataUpdated                uint32 = 331
+	ErrorCodeUnableToConnectToLobbyServer   uint32 = 332
 )
 
 type ResponseError struct {

@@ -45,6 +45,14 @@ func init() {
 		}
 
 		_, err = db.NewCreateTable().
+			Model((*AccountTOTP20251101172200)(nil)).
+			IfNotExists().
+			Exec(ctx)
+		if err != nil {
+			return err
+		}
+
+		_, err = db.NewCreateTable().
 			Model((*Account20251101172200)(nil)).
 			IfNotExists().
 			Exec(ctx)
@@ -104,6 +112,14 @@ func init() {
 
 		_, err = db.NewDropTable().
 			Model((*AccountSession20251101172200)(nil)).
+			IfExists().
+			Exec(ctx)
+		if err != nil {
+			return err
+		}
+
+		_, err = db.NewDropTable().
+			Model((*AccountTOTP20251101172200)(nil)).
 			IfExists().
 			Exec(ctx)
 		if err != nil {
@@ -178,10 +194,19 @@ type AccountSession20251101172200 struct {
 	AccountID   uint32 `bun:"type:int unsigned,unique"`
 	CharacterID uint32 `bun:"type:int unsigned,notnull,pk"`
 	SessionKey  string `bun:"type:varchar(16),notnull,unique"`
-	ClientIP    uint32 `bun:"type:int unsigned,notnull"`
+	ClientIP    string `bun:"type:varchar(15),notnull"`
 
 	CreatedAt time.Time `bun:"type:timestamp,notnull,default:current_timestamp"`
 	UpdatedAt time.Time `bun:"type:timestamp,notnull,default:current_timestamp"`
+}
+
+type AccountTOTP20251101172200 struct {
+	bun.BaseModel `bun:"table:account_totps"`
+
+	AccountID    uint32 `bun:"type:int unsigned,notnull,pk"`
+	Secret       string `bun:"type:varchar(32),notnull"`
+	RecoveryCode string `bun:"type:varchar(32),notnull"`
+	Validated    bool   `bun:"type:boolean,notnull,default:false"`
 }
 
 type Account20251101172200 struct {

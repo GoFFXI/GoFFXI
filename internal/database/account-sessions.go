@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -18,7 +19,7 @@ type AccountSession struct {
 	AccountID   uint32 `bun:"type:int unsigned,unique"`
 	CharacterID uint32 `bun:"type:int unsigned,notnull,pk"`
 	SessionKey  string `bun:"type:varchar(16),notnull,unique"`
-	ClientIP    uint32 `bun:"type:int unsigned,notnull"`
+	ClientIP    string `bun:"type:varchar(15),notnull"`
 
 	CreatedAt time.Time `bun:"type:timestamp,notnull,default:current_timestamp"`
 	UpdatedAt time.Time `bun:"type:timestamp,notnull,default:current_timestamp"`
@@ -40,6 +41,10 @@ func (q *queriesImpl) GetAccountSessionBySessionKey(ctx context.Context, session
 
 	err := q.db.NewSelect().Model(&accountSession).Where("session_key = ?", sessionKey).Scan(ctx)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return AccountSession{}, ErrNotFound
+		}
+
 		return AccountSession{}, err
 	}
 

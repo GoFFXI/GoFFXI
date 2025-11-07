@@ -2,33 +2,83 @@ package auth
 
 import (
 	"fmt"
-
-	"github.com/GoFFXI/login-server/internal/tools"
+	"strconv"
+	"strings"
 )
 
 type RequestHeader struct {
-	Username      string
-	Password      string
-	Command       uint8
-	ClientVersion string
+	Command     uint8    `json:"command"`
+	Username    string   `json:"username"`
+	Password    string   `json:"password"`
+	NewPassword string   `json:"new_password"`
+	OTP         string   `json:"otp"`
+	Version     [3]uint8 `json:"version"`
 }
 
-func NewRequestHeader(buffer []byte) (*RequestHeader, error) {
-	// verify minimum size
-	if len(buffer) < 0x66 { // At least up to version field
-		return nil, fmt.Errorf("buffer too small: need at least %d bytes, got %d", 0x66, len(buffer))
+func (rh *RequestHeader) ClientVersion() string {
+	return fmt.Sprintf("%d.%d.%d", rh.Version[0], rh.Version[1], rh.Version[2])
+}
+
+func (rh *RequestHeader) ClientMajorVersion() uint8 {
+	return rh.Version[0]
+}
+
+func (rh *RequestHeader) ClientMinorVersion() uint8 {
+	return rh.Version[1]
+}
+
+func (rh *RequestHeader) ClientPatchVersion() uint8 {
+	return rh.Version[2]
+}
+
+func (rh *RequestHeader) parseExpectedVersion(expectedVersion string) [3]uint8 {
+	parts := strings.Split(expectedVersion, ".")
+	if len(parts) == 0 {
+		return [3]uint8{0, 0, 0}
+	} else if len(parts) == 1 {
+		parts = append(parts, "0", "0")
+	} else if len(parts) == 2 {
+		parts = append(parts, "0")
+	} else {
+		parts = parts[:3]
 	}
 
-	request := &RequestHeader{
-		Username:      string(buffer[0x09:0x19]),
-		Password:      string(buffer[0x19:0x39]),
-		Command:       buffer[0x39],
-		ClientVersion: string(buffer[0x61:0x66]),
+	var version [3]uint8
+	for i := range parts {
+		tmp, _ := strconv.Atoi(parts[i])
+		version[i] = uint8(tmp) //nolint:gosec // technically safe, version numbers should never be that large
 	}
 
-	request.Username = tools.StripStringUnicode(request.Username)
-	request.Password = tools.StripStringUnicode(request.Password)
-	request.ClientVersion = tools.StripStringUnicode(request.ClientVersion)
+	return version
+}
 
-	return request, nil
+func (rh *RequestHeader) VersionMatches(expectedVersion string) bool {
+	expected := rh.parseExpectedVersion(expectedVersion)
+
+	return rh.Version == expected
+}
+
+func (rh *RequestHeader) VersionAtLeast(expectedVersion string) bool {
+	expected := rh.parseExpectedVersion(expectedVersion)
+
+	// compare major version
+	if rh.Version[0] > expected[0] {
+		return true
+	} else if rh.Version[0] < expected[0] {
+		return false
+	}
+
+	// major versions are equal, compare minor
+	if rh.Version[1] > expected[1] {
+		return true
+	} else if rh.Version[1] < expected[1] {
+		return false
+	}
+
+	// major and minor versions are equal, compare patch
+	if rh.Version[2] >= expected[2] {
+		return true
+	}
+
+	return false
 }

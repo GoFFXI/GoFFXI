@@ -56,35 +56,35 @@ func (s *ViewServer) handleRequestCreateCharacter(sessionCtx *sessionContext, se
 	// make sure the race is valid
 	if req.CharacterInfo.RaceID < 1 || req.CharacterInfo.RaceID > 8 {
 		logger.Warn("invalid race ID", "raceID", req.CharacterInfo.RaceID)
-		s.sendErrorResponse(sessionCtx, ErrorIncorrectCharacterParameters)
+		s.sendErrorResponse(sessionCtx, ErrorCodeIncorrectCharacterParameters)
 		return true
 	}
 
 	// make sure the size is valid
 	if req.CharacterInfo.CharacterSize > 2 {
 		logger.Warn("invalid size", "size", req.CharacterInfo.CharacterSize)
-		s.sendErrorResponse(sessionCtx, ErrorIncorrectCharacterParameters)
+		s.sendErrorResponse(sessionCtx, ErrorCodeIncorrectCharacterParameters)
 		return true
 	}
 
 	// make sure the face is valid
 	if req.CharacterInfo.FaceModelID > 15 {
 		logger.Warn("invalid face ID", "faceID", req.CharacterInfo.FaceModelID)
-		s.sendErrorResponse(sessionCtx, ErrorIncorrectCharacterParameters)
+		s.sendErrorResponse(sessionCtx, ErrorCodeIncorrectCharacterParameters)
 		return true
 	}
 
 	// make sure the job is a starting job
 	if req.CharacterInfo.MainJobID < 1 || req.CharacterInfo.MainJobID > 6 {
 		logger.Warn("invalid main job ID", "mainJobID", req.CharacterInfo.MainJobID)
-		s.sendErrorResponse(sessionCtx, ErrorIncorrectCharacterParameters)
+		s.sendErrorResponse(sessionCtx, ErrorCodeIncorrectCharacterParameters)
 		return true
 	}
 
 	// make sure the nation is valid
 	if req.CharacterInfo.TownNumber > 2 {
 		logger.Warn("invalid nation ID", "nationID", req.CharacterInfo.TownNumber)
-		s.sendErrorResponse(sessionCtx, ErrorIncorrectCharacterParameters)
+		s.sendErrorResponse(sessionCtx, ErrorCodeIncorrectCharacterParameters)
 		return true
 	}
 
@@ -92,20 +92,20 @@ func (s *ViewServer) handleRequestCreateCharacter(sessionCtx *sessionContext, se
 	characterCount, err := s.DB().CountCharactersByAccountID(sessionCtx.ctx, session.AccountID)
 	if err != nil {
 		logger.Error("failed to count characters for account", "error", err)
-		s.sendErrorResponse(sessionCtx, ErrorFailedToRegisterWithNameServer)
+		s.sendErrorResponse(sessionCtx, ErrorCodeFailedToRegisterWithNameServer)
 		return true
 	}
 
 	// make sure the account hasn't reached the character limit
 	if characterCount >= s.Config().MaxContentIDsPerAccount {
 		logger.Warn("account has reached character limit", "accountID", session.AccountID, "characterCount", characterCount)
-		s.sendErrorResponse(sessionCtx, ErrorFailedToRegisterWithNameServer)
+		s.sendErrorResponse(sessionCtx, ErrorCodeFailedToRegisterWithNameServer)
 		return false
 	}
 
 	if err = s.saveNewCharacterToDatabase(sessionCtx.ctx, session.AccountID, sessionCtx.requestedCharacterName, &req.CharacterInfo); err != nil {
 		logger.Error("failed to save new character to database", "error", err)
-		s.sendErrorResponse(sessionCtx, ErrorFailedToRegisterWithNameServer)
+		s.sendErrorResponse(sessionCtx, ErrorCodeFailedToRegisterWithNameServer)
 		return true
 	}
 

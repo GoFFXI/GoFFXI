@@ -9,12 +9,13 @@ import (
 type Queries interface {
 	AccountBanQueries
 	AccountIPRecordQueries
-	AccountQueries
 	AccountSessionQueries
+	AccountTOTPQueries
+	AccountQueries
 	CharacterJobsQueries
 	CharacterLooksQueries
-	CharacterQueries
 	CharacterStatsQueries
+	CharacterQueries
 }
 
 type Tx interface {

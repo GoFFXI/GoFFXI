@@ -45,7 +45,7 @@ func (s *ViewServer) handleRequestCreateCharacterPre(sessionCtx *sessionContext,
 	req, err := NewRequestCreateCharacterPre(request)
 	if err != nil {
 		logger.Error("failed to parse request", "error", err)
-		s.sendErrorResponse(sessionCtx, ErrorIncorrectCharacterParameters)
+		s.sendErrorResponse(sessionCtx, ErrorCodeIncorrectCharacterParameters)
 
 		return true
 	}
@@ -73,7 +73,7 @@ func (s *ViewServer) handleRequestCreateCharacterPre(sessionCtx *sessionContext,
 	exists, err := s.DB().CharacterNameExists(sessionCtx.ctx, characterName)
 	if err != nil {
 		logger.Error("failed to check if character name exists", "error", err)
-		s.sendErrorResponse(sessionCtx, ErrorFailedToRegisterWithNameServer)
+		s.sendErrorResponse(sessionCtx, ErrorCodeFailedToRegisterWithNameServer)
 
 		return true
 	}
@@ -89,7 +89,7 @@ func (s *ViewServer) handleRequestCreateCharacterPre(sessionCtx *sessionContext,
 	worldName := string(bytes.TrimRight(req.WorldName[:], "\x00"))
 	if worldName != s.Config().WorldName {
 		logger.Warn("invalid world name", "worldName", worldName)
-		s.sendErrorResponse(sessionCtx, ErrorFailedToRegisterWithNameServer)
+		s.sendErrorResponse(sessionCtx, ErrorCodeFailedToRegisterWithNameServer)
 
 		return false
 	}

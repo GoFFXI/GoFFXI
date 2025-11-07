@@ -1,56 +1,58 @@
 package auth
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"net"
 
+	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/GoFFXI/login-server/internal/database"
 )
 
 const (
-	RequestAttemptLogin = 0x10
+	CommandRequestAttemptLogin = 0x10
 
-	// For now, we're not going to enforce this particular error
-	// It's just here for reference in the future if we want to use it
-	ErrorAlreadyLoggedIn = 0x0A
+	SuccessCodeLoginSuccessful = 0x01
+
+	ErrorCodeAttemptLoginFailed = 0x00
+	ErrorCodeAttemptLoginError  = 0x02
 )
 
-type ResponseAttemptLogin struct {
-	Status     uint8    // Status code (0x01 for success)
-	AccountID  uint32   // Account ID (Big-endian!)
-	SessionKey [16]byte // Session key/token (variable length)
+type ResponseAttemptLoginSuccess struct {
+	ResultCode uint8    `json:"result"`
+	AccountID  uint32   `json:"account_id"`
+	SessionKey [16]byte `json:"session_hash"`
 }
 
-func (r *ResponseAttemptLogin) Serialize() []byte {
-	buf := new(bytes.Buffer)
-
-	// Write status byte
-	buf.WriteByte(r.Status)
-
-	// Write account ID in BIG-ENDIAN (matching your original code)
-	_ = binary.Write(buf, binary.BigEndian, r.AccountID)
-
-	// Write session key
-	buf.Write(r.SessionKey[:])
-
-	return buf.Bytes()
+func (re ResponseAttemptLoginSuccess) ToJSON() []byte {
+	data, _ := json.Marshal(re)
+	return data
 }
 
-func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Conn, username, password string) bool {
+func NewResponseAttemptLoginSuccess(accountID uint32, sessionKey [16]byte) ResponseAttemptLoginSuccess {
+	return ResponseAttemptLoginSuccess{
+		ResultCode: SuccessCodeLoginSuccessful,
+		AccountID:  accountID,
+		SessionKey: sessionKey,
+	}
+}
+
+func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Conn, header *RequestHeader) bool {
 	logger := s.Logger().With("request", "attempt-login")
 	logger.Info("handling request")
 
 	// attempt to lookup the account by username
-	account, err := s.DB().GetAccountByUsername(ctx, username)
+	account, err := s.DB().GetAccountByUsername(ctx, header.Username)
 	if err != nil {
 		logger.Error("failed to get account", "error", err)
-		_, _ = conn.Write([]byte{ResponseFail})
+		response := NewResponseResult(ErrorCodeAttemptLoginError)
+		_, _ = conn.Write(response.ToJSON())
+
 		return false
 	}
 
@@ -58,33 +60,62 @@ func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Con
 	isBanned, err := s.DB().IsAccountBanned(ctx, account.ID)
 	if err != nil {
 		logger.Error("failed to check if account is banned", "error", err)
-		_, _ = conn.Write([]byte{ResponseErrorOccurred})
+		response := NewResponseResult(ErrorCodeAttemptLoginError)
+		_, _ = conn.Write(response.ToJSON())
+
 		return false
 	}
 
 	if isBanned {
-		logger.Warn("account is banned", "username", username)
-		_, _ = conn.Write([]byte{ResponseFail})
+		logger.Warn("account is banned", "username", header.Username)
+		response := NewResponseResult(ErrorCodeAttemptLoginFailed)
+		_, _ = conn.Write(response.ToJSON())
+
 		return true
 	}
 
 	// compare the passwords using bcrypt
-	if err = bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(password)); err != nil {
-		logger.Warn("invalid password", "username", username)
-		_, _ = conn.Write([]byte{ResponseFail})
+	if err = bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(header.Password)); err != nil {
+		logger.Warn("invalid password", "username", header.Username)
+		response := NewResponseResult(ErrorCodeAttemptLoginError)
+		_, _ = conn.Write(response.ToJSON())
+
 		return false
 	}
 
+	// check if TOPP is enabled for the account
+	accountTOTP, err := s.DB().GetAccountTOTPByAccountID(ctx, account.ID)
+	if err != nil {
+		if !errors.Is(err, database.ErrNotFound) {
+			logger.Error("failed to get account TOTP info", "error", err)
+			response := NewResponseError("Failed to validate credentials")
+			_, _ = conn.Write(response.ToJSON())
+
+			return false
+		}
+	}
+
+	// make sure TOTP is validated if it is enabled
+	if accountTOTP.Validated && !totp.Validate(header.OTP, accountTOTP.Secret) {
+		logger.Warn("invalid TOTP", "username", header.Username)
+		response := NewResponseResult(ErrorCodeAttemptLoginError)
+		_, _ = conn.Write(response.ToJSON())
+
+		return true
+	}
+
 	// generate a session token
-	logger.Info("login successful", "username", username)
-	sessionKey := s.generateSessionKey()
-	logger.Debug("session token generated", "username", username, "sessionToken", sessionKey)
+	logger.Info("login successful", "username", header.Username)
+	sessionKey := generateSessionKey()
+	logger.Debug("session token generated", "username", header.Username, "sessionToken", sessionKey)
 
 	// parse the client IP address
 	host, _, err := net.SplitHostPort(conn.RemoteAddr().String())
 	if err != nil {
 		logger.Error("failed to parse client address", "error", err)
-		_, _ = conn.Write([]byte{ResponseErrorOccurred})
+		response := NewResponseResult(ErrorCodeAttemptLoginError)
+		_, _ = conn.Write(response.ToJSON())
+
 		return false
 	}
 
@@ -92,7 +123,9 @@ func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Con
 	clientAddr := net.ParseIP(host).To4()
 	if clientAddr == nil {
 		logger.Error("failed to parse client IPv4 address", "address", host)
-		_, _ = conn.Write([]byte{ResponseErrorOccurred})
+		response := NewResponseResult(ErrorCodeAttemptLoginError)
+		_, _ = conn.Write(response.ToJSON())
+
 		return false
 	}
 
@@ -101,29 +134,26 @@ func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Con
 		AccountID:   account.ID,
 		CharacterID: 0, // No character selected yet
 		SessionKey:  string(sessionKey[:]),
-		ClientIP:    binary.BigEndian.Uint32(clientAddr),
+		ClientIP:    clientAddr.String(),
 	}
 
 	_, err = s.DB().CreateAccountSession(ctx, accountSession)
 	if err != nil {
 		logger.Error("failed to create account session", "error", err)
-		_, _ = conn.Write([]byte{ResponseErrorOccurred})
+		response := NewResponseResult(ErrorCodeAttemptLoginError)
+		_, _ = conn.Write(response.ToJSON())
+
 		return false
 	}
 
-	response := &ResponseAttemptLogin{
-		Status:     ResponseSuccess,
-		AccountID:  account.ID,
-		SessionKey: sessionKey,
-	}
-
-	// finally, write the response buffer to the connection
-	_, _ = conn.Write(response.Serialize())
+	// send the success response
+	response := NewResponseAttemptLoginSuccess(account.ID, sessionKey)
+	_, _ = conn.Write(response.ToJSON())
 
 	return true
 }
 
-func (s *AuthServer) generateSessionKey() [16]byte {
+func generateSessionKey() [16]byte {
 	// Generate a random 8-byte session key
 	randomBytes := make([]byte, 8)
 	_, _ = rand.Read(randomBytes)

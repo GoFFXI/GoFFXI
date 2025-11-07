@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,17 +14,9 @@ import (
 	"github.com/GoFFXI/login-server/internal/config"
 	"github.com/GoFFXI/login-server/internal/database/migrations"
 	"github.com/GoFFXI/login-server/internal/server"
-	"github.com/GoFFXI/login-server/internal/tools"
 )
 
 const (
-	ResponseFail          = 0x00
-	ResponseSuccess       = 0x01
-	ResponseErrorOccurred = 0x02
-
-	RequestCreateAccount  = 0x20
-	RequestChangePassword = 0x30
-
 	ErrorInvalidClientVersion = 0x0B
 )
 
@@ -122,50 +115,57 @@ func (s *AuthServer) handleConnection(ctx context.Context, conn net.Conn) {
 }
 
 func (s *AuthServer) parseIncomingRequest(ctx context.Context, logger *slog.Logger, conn net.Conn, request []byte) bool {
-	// parse the auth request header
-	header, err := NewRequestHeader(request)
-	if err != nil {
-		logger.Error("failed to parse auth request header", "error", err)
-		return true
-	}
-
-	// handle client version enforcement
-	logger.Debug("detected client version", "version", header.ClientVersion)
-	if !s.clientVersionIsValid(header.ClientVersion) {
-		logger.Error("client version mismatch - disconnecting", "got", header.ClientVersion)
+	// check if the request is from an old version of xiloader
+	if request[0] == 0xFF {
+		logger.Info("detected old version of xiloader client")
 		_, _ = conn.Write([]byte{ErrorInvalidClientVersion})
 		return true
 	}
 
+	// attempt to parse the JSON payloads
+	header := RequestHeader{}
+	if err := json.Unmarshal(request, &header); err != nil {
+		logger.Error("failed to parse JSON header", "error", err)
+		return true
+	}
+
+	// handle client version enforcement
+	logger.Info("detected client version", "version", header.ClientVersion())
+	if s.Config().XILoaderEnforceVersion == 2 {
+		// enforce minimum version
+		if !header.VersionAtLeast(s.Config().XILoaderVersion) {
+			logger.Error("client version mismatch - disconnecting", "got", header.ClientVersion())
+			responseError := NewResponseError("Your XI Loader version is outdated. Please update to at least " + s.Config().XILoaderVersion)
+			_, _ = conn.Write(responseError.ToJSON())
+			return true
+		}
+	} else if s.Config().XILoaderEnforceVersion == 1 {
+		// enforce exact version match
+		if !header.VersionMatches(s.Config().XILoaderVersion) {
+			logger.Error("client version mismatch - disconnecting", "got", header.ClientVersion())
+			responseError := NewResponseError("Your XI Loader version is incompatible. Please use version " + s.Config().XILoaderVersion)
+			_, _ = conn.Write(responseError.ToJSON())
+			return true
+		}
+	}
+
+	// handle commands
 	switch header.Command {
-	case RequestAttemptLogin:
-		return s.handleRequestAttemptLogin(ctx, conn, header.Username, header.Password)
-	case RequestCreateAccount:
-		s.handleRequestCreateAccount(ctx, conn, header.Username, header.Password)
-	case RequestChangePassword:
-		s.handleRequestChangePassword(ctx, conn, header.Username, header.Password, request)
+	case CommandRequestAttemptLogin:
+		return s.handleRequestAttemptLogin(ctx, conn, &header)
+	case CommandRequestCreateAccount:
+		return s.handleRequestCreateAccount(ctx, conn, &header)
+	case CommandRequestChangePassword:
+		return s.handleRequestChangePassword(ctx, conn, &header)
+	case CommandRequestCreateTOTP:
+		return s.handleRequestCreateTOTP(ctx, conn, &header)
+	case CommandRequestRemoveTOTP:
+		return s.handleRequestRemoveTOTP(ctx, conn, &header)
+	case CommandRequestRegenerateRecovery:
+		return s.handleRequestRegenerateRecovery(ctx, conn, &header)
+	case CommandRequestVerifyTOTP:
+		return s.handleRequestVerifyTOTP(ctx, conn, &header)
 	}
 
 	return false
-}
-
-func (s *AuthServer) clientVersionIsValid(clientVersion string) bool {
-	if s.Config().XIClientEnforceVersion == 1 {
-		// enforce exact version match
-		if !tools.VersionIsEqualTo(clientVersion, s.Config().XILoaderVersion) {
-			return false
-		}
-	} else if s.Config().XIClientEnforceVersion == 2 {
-		// enforce minimum version
-		clientMajor, clientMinor, clientPatch := tools.GetVersionsFromString(clientVersion)
-		minMajor, minMinor, minPatch := tools.GetVersionsFromString(s.Config().XILoaderVersion)
-
-		if (clientMajor < minMajor) ||
-			(clientMajor == minMajor && clientMinor < minMinor) ||
-			(clientMajor == minMajor && clientMinor == minMinor && clientPatch < minPatch) {
-			return false
-		}
-	}
-
-	return true
 }

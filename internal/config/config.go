@@ -61,16 +61,13 @@ type Config struct {
 	MaxContentIDsPerAccount int `env:"MAX_CONTENT_IDS_PER_ACCOUNT" default:"3"`
 
 	// XILoaderVersion is the version of the XI Loader to use
-	XILoaderVersion string `env:"XI_LOADER_VERSION" default:"1.0.0"`
-
-	// XIClientVersion is the version of the client to enforce (if enabled)
-	XIClientVersion string `env:"XI_CLIENT_VERSION" default:"1.0.0"`
+	XILoaderVersion string `env:"XI_LOADER_VERSION" default:"2.0.0"`
 
 	// XIClientEnforceVersion specifies whether to enforce the client version
 	// 0 = no enforcement
 	// 1 = exact version match
 	// 2 = version must be greater than or equal to
-	XIClientEnforceVersion int `env:"XI_CLIENT_ENFORCE_VERSION" default:"0"`
+	XILoaderEnforceVersion int `env:"XI_LOADER_ENFORCE_VERSION" default:"2"`
 
 	// RiseOfZilartEnabled specifies whether the Rise of Zilart expansion is enabled
 	RiseOfZilartEnabled bool `env:"RISE_OF_ZILART_ENABLED" default:"true"`

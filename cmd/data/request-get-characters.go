@@ -42,7 +42,7 @@ func NewRequestGetCharacters(data []byte) (*RequestGetCharacters, error) {
 	buf := bytes.NewReader(data)
 
 	// Read the entire struct at once (works because all fields are fixed-size)
-	err := binary.Read(buf, binary.BigEndian, request)
+	err := binary.Read(buf, binary.LittleEndian, request)
 	if err != nil {
 		return nil, err
 	}

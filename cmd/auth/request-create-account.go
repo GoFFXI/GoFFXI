@@ -11,65 +11,73 @@ import (
 )
 
 const (
-	ResponseAccountCreated = 0x03
+	CommandRequestCreateAccount = 0x20
 
-	ErrorUsernameTaken           = 0x04
-	ErrorAccountCreationDisabled = 0x08
-	ErrorCreatingAccount         = 0x09
+	SuccessCodeAccountCreated = 0x03
+
+	ErrorCodeAccountCreationDisabled = 0x08
+	ErrorCodeAccountCreateFailed     = 0x09
+	ErrorCodeAccountUsernameTaken    = 0x04
 )
 
-func (s *AuthServer) handleRequestCreateAccount(ctx context.Context, conn net.Conn, username, password string) {
+func (s *AuthServer) handleRequestCreateAccount(ctx context.Context, conn net.Conn, header *RequestHeader) bool {
 	logger := s.Logger().With("request", "create-account")
 	logger.Info("handling request")
 
 	// check if account creation is enabled
 	if !s.Config().AccountCreationEnabled {
 		logger.Warn("account creation is disabled")
-		_, _ = conn.Write([]byte{ErrorAccountCreationDisabled})
+		response := NewResponseResult(ErrorCodeAccountCreationDisabled)
+		_, _ = conn.Write(response.ToJSON())
 
-		return
+		return false
 	}
 
 	// validate that the username meets minimum length requirements
-	username = strings.TrimSpace(username)
+	username := strings.TrimSpace(header.Username)
 	if len(username) < s.Config().MinUsernameLength {
 		logger.Warn("username too short", "length", len(username))
-		_, _ = conn.Write([]byte{ErrorCreatingAccount})
+		response := NewResponseResult(ErrorCodeAccountCreateFailed)
+		_, _ = conn.Write(response.ToJSON())
 
-		return
+		return false
 	}
 
 	// validate that the password meets minimum length requirements
-	password = strings.TrimSpace(password)
+	password := strings.TrimSpace(header.Password)
 	if len(password) < s.Config().MinPasswordLength {
 		logger.Warn("password too short", "length", len(password))
-		_, _ = conn.Write([]byte{ErrorCreatingAccount})
+		response := NewResponseResult(ErrorCodeAccountCreateFailed)
+		_, _ = conn.Write(response.ToJSON())
 
-		return
+		return false
 	}
 
 	// check if the username is already taken
 	exists, err := s.DB().AccountExists(ctx, username)
 	if err != nil {
 		logger.Error("failed to check if account exists", "error", err)
-		_, _ = conn.Write([]byte{ErrorCreatingAccount})
+		response := NewResponseResult(ErrorCodeAccountCreateFailed)
+		_, _ = conn.Write(response.ToJSON())
 
-		return
+		return false
 	}
 
 	if exists {
 		logger.Warn("username already taken", "username", username)
-		_, _ = conn.Write([]byte{ErrorUsernameTaken})
+		response := NewResponseResult(ErrorCodeAccountUsernameTaken)
+		_, _ = conn.Write(response.ToJSON())
 
-		return
+		return false
 	}
 
 	// hash the password using bcrypt
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		logger.Error("failed to hash password", "error", err)
-		_, _ = conn.Write([]byte{ResponseErrorOccurred})
-		return
+		response := NewResponseResult(ErrorCodeAccountCreateFailed)
+		_, _ = conn.Write(response.ToJSON())
+		return false
 	}
 
 	// create the account
@@ -80,12 +88,14 @@ func (s *AuthServer) handleRequestCreateAccount(ctx context.Context, conn net.Co
 	_, err = s.DB().CreateAccount(ctx, &account)
 	if err != nil {
 		logger.Error("failed to create account", "error", err)
-		_, _ = conn.Write([]byte{ErrorCreatingAccount})
+		response := NewResponseResult(ErrorCodeAccountCreateFailed)
+		_, _ = conn.Write(response.ToJSON())
 
-		return
+		return false
 	}
 
-	// send back a success response
 	logger.Info("account created successfully", "username", username)
-	_, _ = conn.Write([]byte{ResponseAccountCreated})
+	response := NewResponseResult(SuccessCodeAccountCreated)
+	_, _ = conn.Write(response.ToJSON())
+	return false
 }

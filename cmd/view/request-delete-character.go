@@ -43,7 +43,7 @@ func (s *ViewServer) handleRequestDeleteCharacter(sessionCtx *sessionContext, ac
 	req, err := NewRequestDeleteCharacter(request)
 	if err != nil {
 		logger.Error("failed to parse request", "error", err)
-		s.sendErrorResponse(sessionCtx, ErrorUnableToConnectToLobbyServer)
+		s.sendErrorResponse(sessionCtx, ErrorCodeUnableToConnectToLobbyServer)
 
 		return true
 	}
@@ -52,7 +52,7 @@ func (s *ViewServer) handleRequestDeleteCharacter(sessionCtx *sessionContext, ac
 	character, err := s.DB().GetCharacterByID(sessionCtx.ctx, req.FFXIID)
 	if err != nil {
 		logger.Error("failed to lookup character", "characterID", req.FFXIID, "error", err)
-		s.sendErrorResponse(sessionCtx, ErrorUnableToConnectToLobbyServer)
+		s.sendErrorResponse(sessionCtx, ErrorCodeUnableToConnectToLobbyServer)
 
 		return true
 	}
@@ -71,7 +71,7 @@ func (s *ViewServer) handleRequestDeleteCharacter(sessionCtx *sessionContext, ac
 	_, err = s.DB().UpdateCharacter(sessionCtx.ctx, &character)
 	if err != nil {
 		logger.Error("failed to delete character", "characterID", req.FFXIID, "error", err)
-		s.sendErrorResponse(sessionCtx, ErrorUnableToConnectToLobbyServer)
+		s.sendErrorResponse(sessionCtx, ErrorCodeUnableToConnectToLobbyServer)
 
 		return true
 	}
