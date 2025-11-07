@@ -10,11 +10,11 @@ import (
 
 	// This is necessary to register the MySQL driver
 	_ "github.com/go-sql-driver/mysql"
-
-	"github.com/GoFFXI/login-server/internal/database"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/mysqldialect"
 	"github.com/uptrace/bun/extra/bunslog"
+
+	"github.com/GoFFXI/login-server/internal/database"
 )
 
 func (s *Server) CreateDBConnection(ctx context.Context) error {

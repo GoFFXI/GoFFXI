@@ -253,8 +253,10 @@ type CharacterStats20251101172200 struct {
 type Character20251101172200 struct {
 	bun.BaseModel `bun:"table:characters"`
 
-	ID        uint32 `bun:"type:int unsigned,unique,pk,autoincrement"`
-	AccountID uint32 `bun:"type:int unsigned"`
-	Name      string `bun:"type:varchar(16),notnull,unique"`
-	Nation    uint8  `bun:"type:tinyint unsigned,notnull"`
+	ID                uint32 `bun:"type:int unsigned,unique,pk,autoincrement"`
+	AccountID         uint32 `bun:"type:int unsigned"`
+	OriginalAccountID uint32 `bun:"type:int unsigned"`
+	Name              string `bun:"type:varchar(16),notnull,unique"`
+	Nation            uint8  `bun:"type:tinyint unsigned,notnull"`
+	PosZone           uint16 `bun:"type:smallint unsigned,notnull"`
 }

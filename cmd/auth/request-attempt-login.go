@@ -8,8 +8,9 @@ import (
 	"encoding/hex"
 	"net"
 
-	"github.com/GoFFXI/login-server/internal/database"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/GoFFXI/login-server/internal/database"
 )
 
 const (
@@ -64,7 +65,7 @@ func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Con
 	if isBanned {
 		logger.Warn("account is banned", "username", username)
 		_, _ = conn.Write([]byte{ResponseFail})
-		return false
+		return true
 	}
 
 	// compare the passwords using bcrypt

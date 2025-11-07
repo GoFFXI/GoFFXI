@@ -12,9 +12,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nats-io/nats.go"
+
 	"github.com/GoFFXI/login-server/internal/config"
 	"github.com/GoFFXI/login-server/internal/database"
-	"github.com/nats-io/nats.go"
 )
 
 type ConnectionHandler func(ctx context.Context, conn net.Conn)

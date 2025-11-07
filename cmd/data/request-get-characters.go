@@ -8,6 +8,7 @@ import (
 
 	"github.com/GoFFXI/login-server/internal/constants"
 	"github.com/GoFFXI/login-server/internal/database"
+	"github.com/GoFFXI/login-server/internal/packets"
 )
 
 const (
@@ -19,11 +20,13 @@ const (
 	CharacterStatusInvalid        uint16 = 0
 	CharacterStatusAvailable      uint16 = 1
 	CharacterStatusDisabledUnpaid uint16 = 2
+
+	MaxCharacterSlots = 16
 )
 
 // https://github.com/atom0s/XiPackets/blob/main/lobby/C2S_0x001F_RequestGetChr.md
 type RequestGetCharacters struct {
-	Padding1  byte   // 1 byte
+	_         byte   // 1 byte
 	AccountID uint32 // 4 bytes
 
 	// This packet should apparently contain a Password field but I could not
@@ -47,6 +50,83 @@ func NewRequestGetCharacters(data []byte) (*RequestGetCharacters, error) {
 	return request, nil
 }
 
+// ResponseCharacterList represents the data socket packet sent to xiloader
+// Total size: 0x148 (328) bytes
+type ResponseCharacterList struct {
+	Command        uint8                          // Offset 0x00: 0x03 = Send character list command
+	CharacterCount uint8                          // Offset 0x01: Number of characters in list
+	_              [14]byte                       // Offset 0x02-0x0F: Padding
+	Characters     [20]ResponseCharacterListEntry // Offset 0x10: Character entries (max 20 chars)
+	_              [8]byte                        // Offset 0x150-0x147: Padding to reach 0x148 total
+}
+
+// ResponseCharacterListEntry represents a single character entry in the xiloader packet
+// Each entry is 16 bytes, starting at offset 16
+type ResponseCharacterListEntry struct {
+	ContentID   uint32  // Character/Content ID (same value)
+	CharIDMain  uint16  // Lower 16 bits of character ID
+	WorldID     uint8   // World ID (ignored by xiloader)
+	CharIDExtra uint8   // Upper 8 bits of character ID (ignored by xiloader)
+	_           [8]byte // Padding to make 16 bytes total
+}
+
+// NewResponseCharacterList creates a new character list packet for xiloader
+func NewResponseCharacterList() *ResponseCharacterList {
+	return &ResponseCharacterList{
+		Command: 0x03, // Character list command
+	}
+}
+
+// AddCharacter adds a character to the list
+func (p *ResponseCharacterList) AddCharacter(contentID uint32) error {
+	if p.CharacterCount >= 20 {
+		return fmt.Errorf("maximum character limit (20) reached")
+	}
+
+	p.Characters[p.CharacterCount] = ResponseCharacterListEntry{
+		ContentID:   contentID,
+		CharIDMain:  uint16(contentID & 0xFFFF), //nolint:gosec // lower 16 bits
+		WorldID:     1,
+		CharIDExtra: uint8((contentID >> 16) & 0xFF), //nolint:gosec // upper 8 bits
+	}
+
+	p.CharacterCount++
+	return nil
+}
+
+// Serialize converts the packet to bytes for transmission
+func (p *ResponseCharacterList) Serialize() ([]byte, error) {
+	// Create a buffer of exactly 0x148 bytes
+	buffer := make([]byte, 0x148)
+
+	// Set command and character count
+	buffer[0] = p.Command
+	buffer[1] = p.CharacterCount
+
+	// Write each character entry starting at offset 16
+	for i := uint8(0); i < p.CharacterCount && i < 20; i++ {
+		offset := 16 * (i + 1) // Matches C++ formula: uint32 uListOffset = 16 * (i + 1)
+
+		char := p.Characters[i]
+
+		// Write ContentID (4 bytes)
+		binary.LittleEndian.PutUint32(buffer[offset:], char.ContentID)
+
+		// Write CharIDMain (2 bytes)
+		binary.LittleEndian.PutUint16(buffer[offset+4:], char.CharIDMain)
+
+		// Write WorldID (1 byte)
+		buffer[offset+6] = char.WorldID
+
+		// Write CharIDExtra (1 byte)
+		buffer[offset+7] = char.CharIDExtra
+
+		// Remaining 8 bytes stay as zeros (padding)
+	}
+
+	return buffer, nil
+}
+
 type ResponseChrInfo2Header struct {
 	PacketSize uint32 // Total size of the packet
 	Terminator uint32 // Always 0x46465849 ("IXFF")
@@ -54,59 +134,16 @@ type ResponseChrInfo2Header struct {
 	Identifier string // Identifier - must be exactly 16 bytes
 }
 
-type ResponseChrInfo2ChrInfo struct {
-	RaceID            uint16    // Race ID (mon_no)
-	MainJobID         uint8     // Main job ID (mjob_no)
-	SubJobID          uint8     // Sub job ID (sjob_no)
-	FaceModelID       uint16    // Face model ID (face_no)
-	TownNumber        uint8     // Town/Nation ID (town_no)
-	GenFlag           uint8     // Unknown flag, always 0 (gen_flag)
-	HairModelID       uint8     // Hair model ID (hair_no)
-	CharacterSize     uint8     // Character size: 0=Small, 1=Medium, 2=Large (size)
-	WorldNumber       uint16    // Unknown world number (world_no)
-	GrapIDTbl         [8]uint16 // Model IDs: [0]=calculated, [1]=head, [2]=body, etc (GrapIDTbl)
-	ZoneNumber        uint8     // Current zone ID (low byte) (zone_no)
-	MainJobLevel      uint8     // Main job level (mjob_level)
-	OnlineStatus      uint8     // Online status: 0=hidden(/anon), 1=visible (open_flag)
-	GMCallCounter     uint8     // GM call counter (unused by client) (GMCallCounter)
-	Version           uint16    // Version, usually 2 (version)
-	FishingSkill      uint8     // Fishing skill level (skill1)
-	ZoneNum2          uint8     // Zone ID high byte (zone_no2)
-	SandyRank         uint8     // San d'Oria rank (TC_OPERATION_WORK_USER_RANK_LEVEL_SD_)
-	BastokRank        uint8     // Bastok rank (TC_OPERATION_WORK_USER_RANK_LEVEL_BS_)
-	WindyRank         uint8     // Windurst rank (TC_OPERATION_WORK_USER_RANK_LEVEL_WS_)
-	ErrCounter        uint8     // Error counter, always 0 (ErrCounter)
-	SandyFame         uint16    // San d'Oria fame (TC_OPERATION_WORK_USER_FAME_SD_COMMON_)
-	BastokFame        uint16    // Bastok fame (TC_OPERATION_WORK_USER_FAME_BS_COMMON_)
-	WindyFame         uint16    // Windurst fame (TC_OPERATION_WORK_USER_FAME_WS_COMMON_)
-	NorgFame          uint16    // Norg fame (TC_OPERATION_WORK_USER_FAME_DARK_GUILD_)
-	PlayTimeSeconds   uint32    // Play time in seconds (PlayTime)
-	UnlockedJobsFlag  uint32    // Unlocked jobs flag mask (get_job_flag)
-	JobLevels         [16]uint8 // Job levels array (first slot unused) (job_lev)
-	FirstLoginDate    uint32    // First login timestamp (FirstLoginDate)
-	GilAmount         uint32    // Current gil amount (Gold)
-	WoodworkingSkill  uint8     // Woodworking skill level (skill2)
-	SmithingSkill     uint8     // Smithing skill level (skill3)
-	GoldsmithingSkill uint8     // Goldsmithing skill level (skill4)
-	ClothcraftSkill   uint8     // Clothcraft skill level (skill5)
-	ChatCounter       uint32    // Chat counter (unused by client) (ChatCounter)
-	PartyCounter      uint32    // Party counter (unused by client) (PartyCounter)
-	LeathercraftSkill uint8     // Leathercraft skill level (skill6)
-	BonecraftSkill    uint8     // Bonecraft skill level (skill7)
-	AlchemySkill      uint8     // Alchemy skill level (skill8)
-	CookingSkill      uint8     // Cooking skill level (skill9)
-}
-
 type ResponseChrInfo2Sub struct {
-	FFXIID         uint32                  // Unique character ID
-	FFXIIDWorld    uint16                  // Character's in-game server ID
-	WorldID        uint16                  // Server world ID
-	Status         uint16                  // 1=Available, 2=Disabled (unpaid)
-	Flags          uint8                   // Bit 0: RenameFlag, Bit 1: RaceChangeFlag
-	FFXIIDWorldTbl uint8                   // Character's in-game server ID (hi-byte)
-	CharacterName  [16]byte                // Character name (null-terminated)
-	WorldName      [16]byte                // World name (null-terminated)
-	CharacterInfo  ResponseChrInfo2ChrInfo // Character creation/appearance data
+	FFXIID         uint32                // Unique character ID
+	FFXIIDWorld    uint16                // Character's in-game server ID
+	WorldID        uint16                // Server world ID
+	Status         uint16                // 1=Available, 2=Disabled (unpaid)
+	Flags          uint8                 // Bit 0: RenameFlag, Bit 1: RaceChangeFlag
+	FFXIIDWorldTbl uint8                 // Character's in-game server ID (hi-byte)
+	CharacterName  [16]byte              // Character name (null-terminated)
+	WorldName      [16]byte              // World name (null-terminated)
+	CharacterInfo  packets.CharacterInfo // Character creation/appearance data
 }
 
 // https://github.com/atom0s/XiPackets/blob/main/lobby/S2C_0x0020_ResponseChrInfo2.md
@@ -248,20 +285,59 @@ func (s DataServer) handleRequestGetCharacters(sessionCtx *sessionContext, accou
 	// 1. send a response over the data connection to instruct xiloader to list characters
 	// 2. send a response over the view connection with the actual character data
 
-	// first, let's handle the response over this data connection
-	dataPacket := make([]byte, 0x148)
-	dataPacket[0] = 0x03 // instruct xiloader to list characters
-	dataPacket[1] = 3    // character count (max 16)
-	_, _ = sessionCtx.conn.Write(dataPacket)
-
-	// now, let's prepare the character data for the view connection
-	characters := []ResponseChrInfo2Sub{
-		CreateEmptySlot(),
-		CreateEmptySlot(),
-		CreateEmptySlot(),
+	// fetch the characters from the database
+	var characters []database.Character
+	err = s.DB().BunDB().NewSelect().Model(&characters).Where("account_id = ?", accountSession.AccountID).
+		Relation("Jobs").
+		Relation("Stats").
+		Relation("Looks").
+		Scan(sessionCtx.ctx)
+	if err != nil {
+		logger.Error("failed to fetch characters", "error", err)
+		return true
 	}
 
-	viewResponse, err := NewResponseChrInfo2(characters)
+	// limit to max character slots to it's maximum of 16
+	// note how this is not the server configurable max, but the protocol max
+	// the server config will be applied when creating new characters
+	totalCharacters := uint8(len(characters)) //nolint:gosec // we trust the length will not exceed uint8
+	if totalCharacters > MaxCharacterSlots {
+		totalCharacters = MaxCharacterSlots
+	}
+
+	// setup our data response (so we can add characters to it later)
+	dataResponse := NewResponseCharacterList()
+
+	// now, let's prepare the character data for the view connection
+	characterSlots := make([]ResponseChrInfo2Sub, 0, totalCharacters)
+
+	// loop through existing characters and add them to the response
+	for _, character := range characters {
+		_ = dataResponse.AddCharacter(character.ID)
+		characterSlots = append(characterSlots, ConvertDBCharacterToResponseCharInfo2Sub(character, s.Config().WorldName))
+	}
+
+	// finally, fill remaining slots with empty slots
+	emptySlots := s.Config().MaxContentIDsPerAccount - len(characters)
+	for range emptySlots {
+		characterSlots = append(characterSlots, CreateEmptySlot())
+	}
+
+	// send the data response to xiloader
+	dataPacket, err := dataResponse.Serialize()
+	if err != nil {
+		logger.Error("failed to serialize ResponseCharacterList packet", "error", err)
+		return true
+	}
+
+	_, err = sessionCtx.conn.Write(dataPacket)
+	if err != nil {
+		logger.Error("failed to send ResponseCharacterList packet", "error", err)
+		return true
+	}
+
+	// finally, send the view response to the view server
+	viewResponse, err := NewResponseChrInfo2(characterSlots)
 	if err != nil {
 		logger.Error("failed to create ResponseChrInfo2 packet", "error", err)
 		return true
@@ -278,6 +354,53 @@ func (s DataServer) handleRequestGetCharacters(sessionCtx *sessionContext, accou
 	return false
 }
 
+func ConvertDBCharacterToResponseCharInfo2Sub(character database.Character, worldName string) ResponseChrInfo2Sub {
+	char := ResponseChrInfo2Sub{
+		FFXIID:         character.ID,
+		FFXIIDWorld:    uint16(character.ID & 0xFFFF),      //nolint:gosec // lower 16 bits
+		FFXIIDWorldTbl: uint8((character.ID >> 16) & 0xFF), //nolint:gosec // upper 8 bits
+		WorldID:        1,
+		Status:         CharacterStatusAvailable,
+	}
+
+	// copy character name
+	nameBytes := make([]byte, 16)
+	copy(nameBytes, character.Name)
+	copy(char.CharacterName[:], nameBytes)
+
+	// copy world name
+	worldBytes := make([]byte, 16)
+	copy(worldBytes, worldName)
+	copy(char.WorldName[:], worldBytes)
+
+	// now, fill in character info
+	char.CharacterInfo = packets.CharacterInfo{
+		RaceID:       uint16(character.Looks.Race),
+		MainJobID:    character.Stats.MainJob,
+		SubJobID:     character.Stats.SubJob,
+		FaceModelID:  uint16(character.Looks.Face),
+		TownNumber:   character.Nation,
+		GenFlag:      0,
+		HairModelID:  character.Looks.Face,
+		WorldNumber:  1,
+		ZoneNumber:   uint8(character.PosZone & 0xFF),     //nolint:gosec // lower 16 bits
+		ZoneNum2:     uint8((character.PosZone >> 8) & 1), //nolint:gosec // upper 8 bits
+		MainJobLevel: character.GetMainJobLevel(),
+		GrapIDTbl: [8]uint16{
+			uint16(character.Looks.Face),
+			character.Looks.Head,
+			character.Looks.Body,
+			character.Looks.Hands,
+			character.Looks.Legs,
+			character.Looks.Feet,
+			character.Looks.Main,
+			character.Looks.Sub,
+		},
+	}
+
+	return char
+}
+
 func CreateEmptySlot() ResponseChrInfo2Sub {
 	char := ResponseChrInfo2Sub{
 		Status:        CharacterStatusAvailable, // Available slot for creation
@@ -285,7 +408,7 @@ func CreateEmptySlot() ResponseChrInfo2Sub {
 	}
 
 	// Empty character info structure - most fields stay at zero
-	char.CharacterInfo = ResponseChrInfo2ChrInfo{
+	char.CharacterInfo = packets.CharacterInfo{
 		JobLevels: [16]uint8{1}, // First slot always 1
 	}
 

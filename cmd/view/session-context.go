@@ -15,6 +15,8 @@ type sessionContext struct {
 	subscriptions []*nats.Subscription
 	server        *ViewServer
 	logger        *slog.Logger
+
+	requestedCharacterName string
 }
 
 func (s *sessionContext) SetupSubscriptions(sessionKey string) error {

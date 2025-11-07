@@ -142,6 +142,14 @@ func (s ViewServer) parseIncomingRequest(sessionCtx *sessionContext, request []b
 		return s.handleRequestGetCharacter(sessionCtx, &accountSession, request)
 	case CommandRequestQueryWorldList:
 		return s.handleRequestWorldList(sessionCtx, request)
+	case CommandRequestCreateCharacterPre:
+		return s.handleRequestCreateCharacterPre(sessionCtx, request)
+	case CommandRequestCreateCharacter:
+		return s.handleRequestCreateCharacter(sessionCtx, &accountSession, request)
+	case CommandRequestSelectCharacter:
+		return s.handleRequestSelectCharacter(sessionCtx, &accountSession, request)
+	case CommandRequestDeleteCharacter:
+		return s.handleRequestDeleteCharacter(sessionCtx, &accountSession, request)
 	}
 
 	return false

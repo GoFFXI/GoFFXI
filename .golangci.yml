@@ -148,6 +148,10 @@ linters:
     unused:
       exported-fields-are-used: false
 
+  exclusions:
+    paths:
+    - '^internal/database/migrations/.*'  # Exclude database migration files
+
 formatters:
   enable:
     - gofmt
@@ -160,9 +164,7 @@ formatters:
 
     goimports:
       local-prefixes:
-        - github.com/go-ffxi/login-server
-
-
+        - github.com/GoFFXI/login-server
 
 issues:
   # Maximum issues count per one linter

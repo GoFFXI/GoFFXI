@@ -84,7 +84,7 @@ type ResponseLobbyLogin struct {
 // NewResponseLobbyLogin creates a new login response packet
 func NewResponseLobbyLogin(expansions, features uint32) (*ResponseLobbyLogin, error) {
 	response := &ResponseLobbyLogin{
-		PacketSize:       40, // Fixed size for this packet
+		PacketSize:       0x0028, // Fixed size for this packet
 		Terminator:       constants.ResponsePacketTerminator,
 		Command:          CommandResponseLobbyLogin,
 		Identifier:       [16]byte{}, // Will be filled with MD5 hash

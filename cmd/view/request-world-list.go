@@ -136,7 +136,10 @@ func (s *ViewServer) handleRequestWorldList(sessionCtx *sessionContext, request 
 		return true
 	}
 
-	worlds := GetExampleWorldList()
+	worlds := []WorldInfo{
+		CreateWorldInfo(1, s.Config().WorldName),
+	}
+
 	packet, err := NewResponseQueryWorldList(worlds)
 	if err != nil {
 		logger.Error("failed to create response", "error", err)
@@ -173,12 +176,4 @@ func CreateWorldInfo(id uint32, name string) WorldInfo {
 	copy(world.Name[:], nameBytes)
 
 	return world
-}
-
-func GetExampleWorldList() []WorldInfo {
-	return []WorldInfo{
-		CreateWorldInfo(1, "YoyoIsABitch"),
-		CreateWorldInfo(2, "FuckedUrMom"),
-		CreateWorldInfo(3, "EventideSux"),
-	}
 }

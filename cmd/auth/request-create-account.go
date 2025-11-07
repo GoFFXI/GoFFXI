@@ -5,8 +5,9 @@ import (
 	"net"
 	"strings"
 
-	"github.com/GoFFXI/login-server/internal/database"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/GoFFXI/login-server/internal/database"
 )
 
 const (

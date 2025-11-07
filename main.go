@@ -8,12 +8,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/joho/godotenv"
+	"go.uber.org/automaxprocs/maxprocs"
+
 	"github.com/GoFFXI/login-server/cmd/auth"
 	"github.com/GoFFXI/login-server/cmd/data"
 	"github.com/GoFFXI/login-server/cmd/view"
 	"github.com/GoFFXI/login-server/internal/config"
-	"github.com/joho/godotenv"
-	"go.uber.org/automaxprocs/maxprocs"
 )
 
 // version information - to be set during build time

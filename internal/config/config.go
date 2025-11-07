@@ -53,6 +53,13 @@ type Config struct {
 	// MinPasswordLength is the minimum length for user passwords
 	MinPasswordLength int `env:"MIN_PASSWORD_LENGTH" default:"6"`
 
+	// WorldName is the name of the world/server (as displayed to the client)
+	// Can only be up to 16 characters long
+	WorldName string `env:"WORLD_NAME" default:"GoFFXI"`
+
+	// MaxContentIDsPerAccount is the maximum number of content IDs a player can have
+	MaxContentIDsPerAccount int `env:"MAX_CONTENT_IDS_PER_ACCOUNT" default:"3"`
+
 	// XILoaderVersion is the version of the XI Loader to use
 	XILoaderVersion string `env:"XI_LOADER_VERSION" default:"1.0.0"`
 
