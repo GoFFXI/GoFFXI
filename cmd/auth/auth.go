@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/GoFFXI/login-server/internal/config"
-	"github.com/GoFFXI/login-server/internal/database/migrations"
-	"github.com/GoFFXI/login-server/internal/server"
+	"github.com/GoFFXI/GoFFXI/internal/config"
+	"github.com/GoFFXI/GoFFXI/internal/database/migrations"
+	"github.com/GoFFXI/GoFFXI/internal/server"
 )
 
 const (

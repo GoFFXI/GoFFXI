@@ -7,7 +7,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 
-	"github.com/GoFFXI/login-server/internal/database"
+	"github.com/GoFFXI/GoFFXI/internal/database"
 )
 
 const (

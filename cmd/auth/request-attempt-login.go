@@ -11,7 +11,7 @@ import (
 	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/GoFFXI/login-server/internal/database"
+	"github.com/GoFFXI/GoFFXI/internal/database"
 )
 
 const (

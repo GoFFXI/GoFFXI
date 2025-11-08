@@ -1,5 +1,5 @@
 # Variables
-BINARY_NAME=login-server
+BINARY_NAME=goffxi
 GO=go
 GOFLAGS=-v
 BUILD_DIR=./bin

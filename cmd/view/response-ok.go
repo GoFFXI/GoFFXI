@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/GoFFXI/login-server/internal/constants"
+	"github.com/GoFFXI/GoFFXI/internal/constants"
 )
 
 const (

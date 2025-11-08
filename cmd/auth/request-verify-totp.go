@@ -8,7 +8,7 @@ import (
 
 	"github.com/pquerna/otp/totp"
 
-	"github.com/GoFFXI/login-server/internal/database"
+	"github.com/GoFFXI/GoFFXI/internal/database"
 )
 
 const (

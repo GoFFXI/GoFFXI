@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/GoFFXI/login-server/internal/database"
+	"github.com/GoFFXI/GoFFXI/internal/database"
 )
 
 const (

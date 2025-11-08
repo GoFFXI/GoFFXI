@@ -89,15 +89,15 @@ jobs:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
-          OUTPUT_NAME="login-server-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
+          OUTPUT_NAME="goffxi-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
           go build -v -o "${OUTPUT_NAME}" .
           echo "Built ${OUTPUT_NAME}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
-          name: login-server-${{ matrix.os }}-${{ matrix.arch }}
-          path: login-server-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}
+          name: goffxi-${{ matrix.os }}-${{ matrix.arch }}
+          path: goffxi-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}
           retention-days: 7
 
   compile-check:

@@ -164,7 +164,7 @@ formatters:
 
     goimports:
       local-prefixes:
-        - github.com/GoFFXI/login-server
+        - github.com/GoFFXI/GoFFXI
 
 issues:
   # Maximum issues count per one linter

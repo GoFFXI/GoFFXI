@@ -11,10 +11,10 @@ import (
 	"github.com/joho/godotenv"
 	"go.uber.org/automaxprocs/maxprocs"
 
-	"github.com/GoFFXI/login-server/cmd/auth"
-	"github.com/GoFFXI/login-server/cmd/data"
-	"github.com/GoFFXI/login-server/cmd/view"
-	"github.com/GoFFXI/login-server/internal/config"
+	"github.com/GoFFXI/GoFFXI/cmd/auth"
+	"github.com/GoFFXI/GoFFXI/cmd/data"
+	"github.com/GoFFXI/GoFFXI/cmd/view"
+	"github.com/GoFFXI/GoFFXI/internal/config"
 )
 
 // version information - to be set during build time
@@ -56,23 +56,23 @@ func main() {
 	switch role {
 	case "auth":
 		logger = logger.With("role", "auth")
-		logger.Info("starting login-server...")
+		logger.Info("starting goffxi...")
 		if err = auth.Run(&cfg, logger); err != nil {
-			logger.Error("failed to start login-server", "error", err)
+			logger.Error("failed to start goffxi", "error", err)
 			os.Exit(1)
 		}
 	case "data":
 		logger = logger.With("role", "data")
-		logger.Info("starting login-server...")
+		logger.Info("starting goffxi...")
 		if err = data.Run(&cfg, logger); err != nil {
-			logger.Error("failed to start login-server", "error", err)
+			logger.Error("failed to start goffxi", "error", err)
 			os.Exit(1)
 		}
 	case "view":
 		logger = logger.With("role", "view")
-		logger.Info("starting login-server...")
+		logger.Info("starting goffxi...")
 		if err = view.Run(&cfg, logger); err != nil {
-			logger.Error("failed to start login-server", "error", err)
+			logger.Error("failed to start goffxi", "error", err)
 			os.Exit(1)
 		}
 	default:
@@ -93,7 +93,7 @@ func handleFlags() string {
 
 	// handle version flag
 	if *version {
-		fmt.Printf("login-server: %s\n", Version)
+		fmt.Printf("GoFFXI: %s\n", Version)
 		fmt.Printf("Build time: %s\n", BuildDate)
 		fmt.Printf("Git commit: %s\n", GitCommit)
 		os.Exit(0)
@@ -112,7 +112,7 @@ func handleFlags() string {
 }
 
 func printUsage() {
-	fmt.Println("Usage: login-server --role=<role>")
+	fmt.Println("Usage: goffxi --role=<role>")
 	fmt.Println()
 	fmt.Println("Available roles:")
 	fmt.Println("  auth   - Run as authentication server")
@@ -123,7 +123,7 @@ func printUsage() {
 	flag.PrintDefaults()
 	fmt.Println()
 	fmt.Println("Examples:")
-	fmt.Println("  login-server --role=auth")
-	fmt.Println("  login-server --role=data")
-	fmt.Println("  login-server --role=view")
+	fmt.Println("  goffxi --role=auth")
+	fmt.Println("  goffxi --role=data")
+	fmt.Println("  goffxi --role=view")
 }

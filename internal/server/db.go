@@ -14,7 +14,7 @@ import (
 	"github.com/uptrace/bun/dialect/mysqldialect"
 	"github.com/uptrace/bun/extra/bunslog"
 
-	"github.com/GoFFXI/login-server/internal/database"
+	"github.com/GoFFXI/GoFFXI/internal/database"
 )
 
 func (s *Server) CreateDBConnection(ctx context.Context) error {

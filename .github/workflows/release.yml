@@ -68,7 +68,7 @@ jobs:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
-          OUTPUT_NAME="login-server-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
+          OUTPUT_NAME="goffxi-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
           VERSION="${{ steps.version.outputs.version }}"
           BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
           GIT_COMMIT=${GITHUB_SHA}
@@ -92,8 +92,8 @@ jobs:
         with:
           name: release-${{ matrix.os }}-${{ matrix.arch }}
           path: |
-            login-server-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}.tar.gz
-            login-server-${{ matrix.os }}-${{ matrix.arch }}.zip
+            goffxi-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}.tar.gz
+            goffxi-${{ matrix.os }}-${{ matrix.arch }}.zip
           retention-days: 1
 
   docker-build:
@@ -201,12 +201,12 @@ jobs:
 
             ```bash
             # Linux/macOS
-            tar -xzf login-server-<platform>-<arch>.tar.gz
-            chmod +x login-server-<platform>-<arch>
-            ./login-server-<platform>-<arch> --help
+            tar -xzf goffxi-<platform>-<arch>.tar.gz
+            chmod +x goffxi-<platform>-<arch>
+            ./goffxi-<platform>-<arch> --help
 
             # Windows
-            # Extract the zip file and run login-server-windows-amd64.exe
+            # Extract the zip file and run goffxi-windows-amd64.exe
             ```
 
             #### Docker

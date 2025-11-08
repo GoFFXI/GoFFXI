@@ -24,7 +24,7 @@ ARG GIT_COMMIT
 # Build the binary
 RUN CGO_ENABLED=0 GOOS=linux go build \
   -ldflags "-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
-  -o login-server .
+  -o goffxi .
 
 # Final stage
 FROM alpine:latest
@@ -40,7 +40,7 @@ RUN addgroup -g 1000 ffxi && \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /build/login-server /app/login-server
+COPY --from=builder /build/goffxi /app/goffxi
 
 # Change ownership
 RUN chown -R ffxi:ffxi /app
@@ -53,7 +53,7 @@ USER ffxi
 EXPOSE 54230 54231 54001
 
 # Set default entrypoint
-ENTRYPOINT ["/app/login-server"]
+ENTRYPOINT ["/app/goffxi"]
 
 # Default command (can be overridden)
 CMD ["--help"]

@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"math/rand"
 
-	"github.com/GoFFXI/login-server/internal/constants"
-	"github.com/GoFFXI/login-server/internal/database"
-	"github.com/GoFFXI/login-server/internal/packets"
+	"github.com/GoFFXI/GoFFXI/internal/constants"
+	"github.com/GoFFXI/GoFFXI/internal/database"
+	"github.com/GoFFXI/GoFFXI/internal/packets"
 )
 
 const (

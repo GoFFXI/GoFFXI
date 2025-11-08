@@ -14,8 +14,8 @@ import (
 
 	"github.com/nats-io/nats.go"
 
-	"github.com/GoFFXI/login-server/internal/config"
-	"github.com/GoFFXI/login-server/internal/database"
+	"github.com/GoFFXI/GoFFXI/internal/config"
+	"github.com/GoFFXI/GoFFXI/internal/database"
 )
 
 type ConnectionHandler func(ctx context.Context, conn net.Conn)

@@ -4,7 +4,7 @@ bin/
 *.dll
 *.so
 *.dylib
-login-server
+goffxi
 
 # Test and coverage files
 *.test

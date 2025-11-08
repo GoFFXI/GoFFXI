@@ -36,11 +36,11 @@ Each server:
 
 ```bash
 # Clone the repository
-git clone https://github.com/go-ffxi/login-server.git
-cd login-server
+git clone https://github.com/GoFFXI/GoFFXI.git
+cd GoFFXI
 
 # Build the binary
-go build -o bin/login-server
+go build -o bin/goffxi
 
 # Or use make
 make build
@@ -64,13 +64,13 @@ make build-windows
 
 ```bash
 # Run auth server
-./bin/login-server --role=auth
+./bin/goffxi --role=auth
 
 # Run data server
-./bin/login-server --role=data
+./bin/goffxi --role=data
 
 # Run view server
-./bin/login-server --role=view
+./bin/goffxi --role=view
 ```
 
 ### Using Make Commands
@@ -88,11 +88,11 @@ Open three terminal windows and run each server:
 
 ```bash
 # Terminal 1
-./bin/login-server --role=auth
+./bin/goffxi --role=auth
 
 # Terminal 2
-./bin/login-server --role=data
+./bin/goffxi --role=data
 
 # Terminal 3
-./bin/login-server --role=view
+./bin/goffxi --role=view
 ```
