@@ -9,7 +9,7 @@ import (
 
 	"github.com/GoFFXI/GoFFXI/internal/constants"
 	"github.com/GoFFXI/GoFFXI/internal/database"
-	"github.com/GoFFXI/GoFFXI/internal/packets"
+	"github.com/GoFFXI/GoFFXI/internal/lobby/packets"
 )
 
 const (
@@ -43,7 +43,7 @@ func NewRequestCreateCharacter(data []byte) (*RequestCreateCharacter, error) {
 	return request, nil
 }
 
-func (s *ViewServer) handleRequestCreateCharacter(sessionCtx *sessionContext, session *database.AccountSession, data []byte) bool {
+func (s *ViewServer) handleRequestCreateCharacter(sessionCtx *sessionContext, accountSession *database.AccountSession, data []byte) bool {
 	logger := s.Logger().With("request", "create-character")
 	logger.Info("handling request")
 
@@ -56,58 +56,61 @@ func (s *ViewServer) handleRequestCreateCharacter(sessionCtx *sessionContext, se
 	// make sure the race is valid
 	if req.CharacterInfo.RaceID < 1 || req.CharacterInfo.RaceID > 8 {
 		logger.Warn("invalid race ID", "raceID", req.CharacterInfo.RaceID)
-		s.sendErrorResponse(sessionCtx, ErrorCodeIncorrectCharacterParameters)
+		s.sendErrorResponse(sessionCtx, packets.ErrorCodeIncorrectCharacterParameters)
 		return true
 	}
 
 	// make sure the size is valid
 	if req.CharacterInfo.CharacterSize > 2 {
 		logger.Warn("invalid size", "size", req.CharacterInfo.CharacterSize)
-		s.sendErrorResponse(sessionCtx, ErrorCodeIncorrectCharacterParameters)
+		s.sendErrorResponse(sessionCtx, packets.ErrorCodeIncorrectCharacterParameters)
 		return true
 	}
 
 	// make sure the face is valid
 	if req.CharacterInfo.FaceModelID > 15 {
 		logger.Warn("invalid face ID", "faceID", req.CharacterInfo.FaceModelID)
-		s.sendErrorResponse(sessionCtx, ErrorCodeIncorrectCharacterParameters)
+		s.sendErrorResponse(sessionCtx, packets.ErrorCodeIncorrectCharacterParameters)
 		return true
 	}
 
 	// make sure the job is a starting job
 	if req.CharacterInfo.MainJobID < 1 || req.CharacterInfo.MainJobID > 6 {
 		logger.Warn("invalid main job ID", "mainJobID", req.CharacterInfo.MainJobID)
-		s.sendErrorResponse(sessionCtx, ErrorCodeIncorrectCharacterParameters)
+		s.sendErrorResponse(sessionCtx, packets.ErrorCodeIncorrectCharacterParameters)
 		return true
 	}
 
 	// make sure the nation is valid
 	if req.CharacterInfo.TownNumber > 2 {
 		logger.Warn("invalid nation ID", "nationID", req.CharacterInfo.TownNumber)
-		s.sendErrorResponse(sessionCtx, ErrorCodeIncorrectCharacterParameters)
+		s.sendErrorResponse(sessionCtx, packets.ErrorCodeIncorrectCharacterParameters)
 		return true
 	}
 
 	// check how many characters the account has
-	characterCount, err := s.DB().CountCharactersByAccountID(sessionCtx.ctx, session.AccountID)
+	characterCount, err := s.DB().CountCharactersByAccountID(sessionCtx.ctx, accountSession.AccountID)
 	if err != nil {
 		logger.Error("failed to count characters for account", "error", err)
-		s.sendErrorResponse(sessionCtx, ErrorCodeFailedToRegisterWithNameServer)
+		s.sendErrorResponse(sessionCtx, packets.ErrorCodeFailedToRegisterWithNameServer)
 		return true
 	}
 
 	// make sure the account hasn't reached the character limit
 	if characterCount >= s.Config().MaxContentIDsPerAccount {
-		logger.Warn("account has reached character limit", "accountID", session.AccountID, "characterCount", characterCount)
-		s.sendErrorResponse(sessionCtx, ErrorCodeFailedToRegisterWithNameServer)
+		logger.Warn("account has reached character limit", "accountID", accountSession.AccountID, "characterCount", characterCount)
+		s.sendErrorResponse(sessionCtx, packets.ErrorCodeFailedToRegisterWithNameServer)
 		return false
 	}
 
-	if err = s.saveNewCharacterToDatabase(sessionCtx.ctx, session.AccountID, sessionCtx.requestedCharacterName, &req.CharacterInfo); err != nil {
+	if err = s.saveNewCharacterToDatabase(sessionCtx.ctx, accountSession.AccountID, sessionCtx.requestedCharacterName, &req.CharacterInfo); err != nil {
 		logger.Error("failed to save new character to database", "error", err)
-		s.sendErrorResponse(sessionCtx, ErrorCodeFailedToRegisterWithNameServer)
+		s.sendErrorResponse(sessionCtx, packets.ErrorCodeFailedToRegisterWithNameServer)
 		return true
 	}
+
+	// the data server has a separate session but needs to know this is a first-time login for the character
+	_ = s.NATS().Publish(fmt.Sprintf("session.%s.data.character.freshlogin", accountSession.SessionKey), []byte{1})
 
 	response, err := NewResponseOK()
 	if err != nil {

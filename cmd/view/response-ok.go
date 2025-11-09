@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/GoFFXI/GoFFXI/internal/constants"
+	"github.com/GoFFXI/GoFFXI/internal/lobby/packets"
 )
 
 const (
@@ -14,21 +15,19 @@ const (
 )
 
 type ResponseOK struct {
-	// Header (28 bytes)
-	PacketSize uint32   // Total packet size (32 bytes)
-	Terminator uint32   // Always 0x46465849 ("IXFF")
-	Command    uint32   // OpCode 0x0003
-	Identifier [16]byte // MD5 hash of the packet
+	Header packets.PacketHeader
 
 	_ uint32 // Padding to make total size 32 bytes
 }
 
 func NewResponseOK() (*ResponseOK, error) {
 	response := &ResponseOK{
-		PacketSize: 0x0020, // Fixed size for this packet
-		Terminator: constants.ResponsePacketTerminator,
-		Command:    CommandResponseOK,
-		Identifier: [16]byte{}, // Will be filled with MD5 hash
+		Header: packets.PacketHeader{
+			PacketSize: 0x0020, // Fixed size for this packet
+			Terminator: constants.ResponsePacketTerminator,
+			Command:    CommandResponseOK,
+			Identifier: [16]byte{}, // Will be filled with MD5 hash
+		},
 	}
 
 	// Calculate MD5 hash
@@ -42,7 +41,7 @@ func NewResponseOK() (*ResponseOK, error) {
 // CalculateAndSetHash calculates the MD5 hash of the packet and sets the identifier
 func (r *ResponseOK) CalculateAndSetHash() error {
 	// Temporarily clear identifier
-	r.Identifier = [16]byte{}
+	r.Header.Identifier = [16]byte{}
 
 	// Serialize to calculate hash
 	data, err := r.Serialize()
@@ -52,7 +51,7 @@ func (r *ResponseOK) CalculateAndSetHash() error {
 
 	// Calculate and set MD5 hash
 	hash := md5.Sum(data) //nolint:gosec // game has to have this
-	r.Identifier = hash
+	r.Header.Identifier = hash
 
 	return nil
 }

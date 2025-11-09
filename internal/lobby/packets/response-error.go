@@ -1,4 +1,4 @@
-package view
+package packets
 
 import (
 	"bytes"
@@ -77,19 +77,4 @@ func (r *ResponseError) Serialize() ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-func (s *ViewServer) sendErrorResponse(sessionCtx *sessionContext, errorCode uint32) {
-	response, err := NewResponseError(errorCode)
-	if err != nil {
-		return
-	}
-
-	responsePacket, err := response.Serialize()
-	if err != nil {
-		return
-	}
-
-	// it's okay if this write fails, we're already in an error state
-	_, _ = sessionCtx.conn.Write(responsePacket)
 }

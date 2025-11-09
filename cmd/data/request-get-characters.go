@@ -8,14 +8,15 @@ import (
 
 	"github.com/GoFFXI/GoFFXI/internal/constants"
 	"github.com/GoFFXI/GoFFXI/internal/database"
-	"github.com/GoFFXI/GoFFXI/internal/packets"
+	"github.com/GoFFXI/GoFFXI/internal/lobby/packets"
 )
 
 const (
 	// https://github.com/atom0s/XiPackets/blob/main/lobby/C2S_0x001F_RequestGetChr.md
 	// for Some reason, the command request is 0xA1 but the docs say 0x001F
-	CommandRequestGetCharacters = 0xA1
-	CommandResponseChrInfo2     = 0x0020
+	CommandRequestGetCharacters   = 0x00A1
+	CommandResponseChrInfo2       = 0x0020
+	CommandResponseListCharacters = 0x0003
 
 	CharacterStatusInvalid        uint16 = 0
 	CharacterStatusAvailable      uint16 = 1
@@ -73,7 +74,7 @@ type ResponseCharacterListEntry struct {
 // NewResponseCharacterList creates a new character list packet for xiloader
 func NewResponseCharacterList() *ResponseCharacterList {
 	return &ResponseCharacterList{
-		Command: 0x03, // Character list command
+		Command: CommandResponseListCharacters,
 	}
 }
 
@@ -127,13 +128,6 @@ func (p *ResponseCharacterList) Serialize() ([]byte, error) {
 	return buffer, nil
 }
 
-type ResponseChrInfo2Header struct {
-	PacketSize uint32 // Total size of the packet
-	Terminator uint32 // Always 0x46465849 ("IXFF")
-	Command    uint32 // OpCode - 0x0020 for ResponseChrInfo2
-	Identifier string // Identifier - must be exactly 16 bytes
-}
-
 type ResponseChrInfo2Sub struct {
 	FFXIID         uint32                // Unique character ID
 	FFXIIDWorld    uint16                // Character's in-game server ID
@@ -148,14 +142,15 @@ type ResponseChrInfo2Sub struct {
 
 // https://github.com/atom0s/XiPackets/blob/main/lobby/S2C_0x0020_ResponseChrInfo2.md
 type ResponseChrInfo2 struct {
-	Header     ResponseChrInfo2Header
+	Header packets.PacketHeader
+
 	Characters uint32                // Number of character entries
 	CharInfo   []ResponseChrInfo2Sub // Array of character information
 }
 
 func NewResponseChrInfo2(characters []ResponseChrInfo2Sub) (*ResponseChrInfo2, error) {
 	packet := &ResponseChrInfo2{
-		Header: ResponseChrInfo2Header{
+		Header: packets.PacketHeader{
 			Terminator: constants.ResponsePacketTerminator,
 			Command:    CommandResponseChrInfo2,
 		},
@@ -186,7 +181,7 @@ func (p ResponseChrInfo2) serialize() ([]byte, error) { //nolint:gocyclo // it's
 
 	// Write identifier as bytes (must be exactly 16 bytes)
 	// If empty, write zeros (will be filled with hash later)
-	if p.Header.Identifier == "" {
+	if len(p.Header.Identifier[:]) == 0 {
 		if _, err := buf.Write(make([]byte, 16)); err != nil {
 			return nil, fmt.Errorf("failed to write empty identifier: %w", err)
 		}
@@ -194,7 +189,7 @@ func (p ResponseChrInfo2) serialize() ([]byte, error) { //nolint:gocyclo // it's
 		if len(p.Header.Identifier) != 16 {
 			return nil, fmt.Errorf("identifier must be exactly 16 bytes, got %d", len(p.Header.Identifier))
 		}
-		if _, err := buf.WriteString(p.Header.Identifier); err != nil {
+		if _, err := buf.Write(p.Header.Identifier[:]); err != nil {
 			return nil, fmt.Errorf("failed to write identifier: %w", err)
 		}
 	}
@@ -243,7 +238,7 @@ func (p ResponseChrInfo2) serialize() ([]byte, error) { //nolint:gocyclo // it's
 
 func (p *ResponseChrInfo2) SerializeWithHash() ([]byte, error) {
 	// clear identifier to write zeros for hash calculation
-	p.Header.Identifier = ""
+	p.Header.Identifier = [16]byte{}
 
 	// serialize packet without hash
 	packet, err := p.serialize()
@@ -252,8 +247,7 @@ func (p *ResponseChrInfo2) SerializeWithHash() ([]byte, error) {
 	}
 
 	// calculate the MD5 hash over the entire packet
-	hash := md5.Sum(packet) //nolint:gosec // we are using MD5 for compatibility with FFXI protocol, not for security
-	p.Header.Identifier = string(hash[:])
+	p.Header.Identifier = md5.Sum(packet) //nolint:gosec // we are using MD5 for compatibility with FFXI protocol, not for security
 
 	// re-serialize packet with correct hash
 	packet, err = p.serialize()
@@ -268,6 +262,13 @@ func (s DataServer) handleRequestGetCharacters(sessionCtx *sessionContext, accou
 	logger := sessionCtx.logger.With("request", "get-characters")
 	logger.Info("handling request")
 
+	// make sure the account session is valid
+	if accountSession == nil {
+		logger.Warn("no valid account session for this request")
+		return true
+	}
+
+	// parse the request packet
 	request, err := NewRequestGetCharacters(data)
 	if err != nil {
 		logger.Error("failed to parse RequestGetCharacters packet", "error", err)
@@ -280,6 +281,15 @@ func (s DataServer) handleRequestGetCharacters(sessionCtx *sessionContext, accou
 		_ = s.NATS().Publish(fmt.Sprintf("session.%s.view.close", accountSession.SessionKey), nil)
 		return true
 	}
+
+	// the view server never receives the account ID in any of it's requests; so, to get around this
+	// we are going to send over the account ID via NATS so it can associate future requests via the session key
+	accountIDBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(accountIDBytes, request.AccountID)
+	_ = s.NATS().Publish(fmt.Sprintf("session.%s.view.account.id", accountSession.SessionKey), accountIDBytes)
+
+	// also, store the account ID in the session context for future use
+	sessionCtx.accountID = request.AccountID
 
 	// in order to process this request, we need to do 2 things:
 	// 1. send a response over the data connection to instruct xiloader to list characters
@@ -314,7 +324,7 @@ func (s DataServer) handleRequestGetCharacters(sessionCtx *sessionContext, accou
 	// loop through existing characters and add them to the response
 	for _, character := range characters {
 		_ = dataResponse.AddCharacter(character.ID)
-		characterSlots = append(characterSlots, ConvertDBCharacterToResponseCharInfo2Sub(character, s.Config().WorldName))
+		characterSlots = append(characterSlots, ConvertDBCharacterToResponseCharInfo2Sub(&character, s.Config().WorldName))
 	}
 
 	// finally, fill remaining slots with empty slots
@@ -354,7 +364,7 @@ func (s DataServer) handleRequestGetCharacters(sessionCtx *sessionContext, accou
 	return false
 }
 
-func ConvertDBCharacterToResponseCharInfo2Sub(character database.Character, worldName string) ResponseChrInfo2Sub {
+func ConvertDBCharacterToResponseCharInfo2Sub(character *database.Character, worldName string) ResponseChrInfo2Sub {
 	char := ResponseChrInfo2Sub{
 		FFXIID:         character.ID,
 		FFXIIDWorld:    uint16(character.ID & 0xFFFF),      //nolint:gosec // lower 16 bits

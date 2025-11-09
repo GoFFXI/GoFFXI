@@ -2,6 +2,7 @@ package view
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"net"
@@ -16,7 +17,9 @@ type sessionContext struct {
 	server        *ViewServer
 	logger        *slog.Logger
 
+	accountID              uint32
 	requestedCharacterName string
+	selectedCharacterID    uint32
 }
 
 func (s *sessionContext) SetupSubscriptions(sessionKey string) error {
@@ -35,6 +38,13 @@ func (s *sessionContext) SetupSubscriptions(sessionKey string) error {
 	subsription, err = s.server.NATS().Subscribe(fmt.Sprintf("session.%s.view.send", sessionKey), s.processNATSSendRequest)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to NATS for session send: %w", err)
+	}
+	s.subscriptions = append(s.subscriptions, subsription)
+
+	// add the account ID subscription
+	subsription, err = s.server.NATS().Subscribe(fmt.Sprintf("session.%s.view.account.id", sessionKey), s.processNATSAccountID)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to NATS for account ID: %w", err)
 	}
 	s.subscriptions = append(s.subscriptions, subsription)
 
@@ -58,6 +68,19 @@ func (s *sessionContext) processNATSSendRequest(msg *nats.Msg) {
 		s.logger.Error("failed to write NATS data to connection", "error", err)
 		s.Close()
 	}
+}
+
+func (s *sessionContext) processNATSAccountID(msg *nats.Msg) {
+	s.logger.Info("received NATS message with account ID")
+	_ = msg.Ack()
+
+	// Process the account ID
+	if len(msg.Data) != 4 {
+		s.logger.Error("invalid account ID length", "length", len(msg.Data))
+		return
+	}
+
+	s.accountID = binary.LittleEndian.Uint32(msg.Data)
 }
 
 func (s *sessionContext) Close() {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/GoFFXI/GoFFXI/internal/config"
 	"github.com/GoFFXI/GoFFXI/internal/database/migrations"
+	"github.com/GoFFXI/GoFFXI/internal/lobby/packets"
 	"github.com/GoFFXI/GoFFXI/internal/server"
 )
 
@@ -111,7 +112,7 @@ func (s ViewServer) handleConnection(ctx context.Context, conn net.Conn) {
 }
 
 func (s ViewServer) parseIncomingRequest(sessionCtx *sessionContext, request []byte) bool {
-	header, err := NewRequestHeader(request)
+	header, err := packets.NewPacketHeader(request)
 	if err != nil {
 		sessionCtx.logger.Error("failed to parse request header", "error", err)
 		return true
@@ -147,10 +148,25 @@ func (s ViewServer) parseIncomingRequest(sessionCtx *sessionContext, request []b
 	case CommandRequestCreateCharacter:
 		return s.handleRequestCreateCharacter(sessionCtx, &accountSession, request)
 	case CommandRequestSelectCharacter:
-		return s.handleRequestSelectCharacter(sessionCtx, &accountSession, request)
+		return s.handleRequestSelectCharacter(sessionCtx, string(header.Identifier[:]), &accountSession, request)
 	case CommandRequestDeleteCharacter:
 		return s.handleRequestDeleteCharacter(sessionCtx, &accountSession, request)
 	}
 
 	return false
+}
+
+func (s *ViewServer) sendErrorResponse(sessionCtx *sessionContext, errorCode uint32) {
+	response, err := packets.NewResponseError(errorCode)
+	if err != nil {
+		return
+	}
+
+	responsePacket, err := response.Serialize()
+	if err != nil {
+		return
+	}
+
+	// it's okay if this write fails, we're already in an error state
+	_, _ = sessionCtx.conn.Write(responsePacket)
 }

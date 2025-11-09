@@ -11,6 +11,7 @@ import (
 
 	"github.com/GoFFXI/GoFFXI/internal/config"
 	"github.com/GoFFXI/GoFFXI/internal/database/migrations"
+	"github.com/GoFFXI/GoFFXI/internal/lobby/packets"
 	"github.com/GoFFXI/GoFFXI/internal/server"
 )
 
@@ -126,9 +127,9 @@ func (s DataServer) parseIncomingRequest(sessionCtx *sessionContext, request []b
 	sessionCtx.logger.Info("looking up session", "sessionKey", sessionKey, "opCode", header.Command)
 	accountSession, err := s.DB().GetAccountSessionBySessionKey(sessionCtx.ctx, sessionKey)
 	if err != nil {
-		// this shouldn't happen normally, log and close the connection
-		sessionCtx.logger.Error("failed to lookup account session", "session_key", header.Identifier, "error", err)
-		return true
+		// don't treat missing session as an error, just log and continue
+		// the 2nd part of selecting a character won't pass in a valid session key for whatever reason
+		sessionCtx.logger.Warn("failed to lookup account session", "sessionKey", sessionKey, "error", err)
 	}
 
 	// make sure this session context has subscriptions set up
@@ -144,7 +145,24 @@ func (s DataServer) parseIncomingRequest(sessionCtx *sessionContext, request []b
 		_, _ = sessionCtx.conn.Write([]byte{})
 	case CommandRequestGetCharacters:
 		return s.handleRequestGetCharacters(sessionCtx, &accountSession, request)
+	case CommandRequestSelectCharacter:
+		return s.handleRequestSelectCharacter(sessionCtx, request)
 	}
 
 	return false
+}
+
+func (s *DataServer) sendErrorResponse(sessionCtx *sessionContext) {
+	response, err := packets.NewResponseError(packets.ErrorCodeUnableToConnectToLobbyServer)
+	if err != nil {
+		return
+	}
+
+	responsePacket, err := response.Serialize()
+	if err != nil {
+		return
+	}
+
+	// it's okay if this write fails, we're already in an error state
+	_, _ = sessionCtx.conn.Write(responsePacket)
 }

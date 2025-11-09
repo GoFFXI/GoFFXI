@@ -284,4 +284,9 @@ type Character20251101172200 struct {
 	Name              string `bun:"type:varchar(16),notnull,unique"`
 	Nation            uint8  `bun:"type:tinyint unsigned,notnull"`
 	PosZone           uint16 `bun:"type:smallint unsigned,notnull"`
+	PosPrevZone       uint16 `bun:"type:smallint unsigned,notnull,default:0"`
+
+	PosX float32 `bun:"type:float,notnull,default:0.000"`
+	PosY float32 `bun:"type:float,notnull,default:0.000"`
+	PosZ float32 `bun:"type:float,notnull,default:0.000"`
 }

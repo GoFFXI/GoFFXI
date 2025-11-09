@@ -1,4 +1,4 @@
-package view
+package packets
 
 import (
 	"bytes"
@@ -7,21 +7,20 @@ import (
 )
 
 // https://github.com/atom0s/XiPackets/blob/main/lobby/Header.md
-type RequestHeader struct {
-	// Header (28 bytes)
-	PacketSize uint32
-	Terminator uint32 // Always 0x46465849 ("IXFF")
-	Command    uint32
-	Identifier [16]byte // MD5 hash of the packet (calculated with this field as zeros)
+type PacketHeader struct {
+	PacketSize uint32   // Total size of the packet
+	Terminator uint32   // Always 0x46465849 ("IXFF")
+	Command    uint32   // OpCode
+	Identifier [16]byte // Identifier - must be exactly 16 bytes
 }
 
-func NewRequestHeader(request []byte) (*RequestHeader, error) {
+func NewPacketHeader(request []byte) (*PacketHeader, error) {
 	// Check minimum size
 	if len(request) < 28 {
 		return nil, fmt.Errorf("insufficient data: need 28 bytes, got %d", len(request))
 	}
 
-	header := &RequestHeader{}
+	header := &PacketHeader{}
 	buf := bytes.NewReader(request)
 
 	// Read the entire struct at once (works because all fields are fixed-size)

@@ -122,6 +122,18 @@ type Config struct {
 
 	// MogWardrobe8Enabled specifies whether the Mog Wardrobe 8 is enabled
 	MogWardrobe8Enabled bool `env:"MOG_WARDROBE_8_ENABLED" default:"true"`
+
+	// MapServerIP is the IP address of the map server to direct clients to
+	MapServerIP string `env:"MAP_SERVER_IP" default:""`
+
+	// MapServerPort is the port of the map server to direct clients to
+	MapServerPort uint32 `env:"MAP_SERVER_PORT" default:"55000"`
+
+	// SearchServerIP is the IP address of the search server to direct clients to
+	SearchServerIP string `env:"SEARCH_SERVER_IP" default:""`
+
+	// SearchServerPort is the port of the search server to direct clients to
+	SearchServerPort uint32 `env:"SEARCH_SERVER_PORT" default:"55010"`
 }
 
 func ParseConfigFromEnv() Config {
