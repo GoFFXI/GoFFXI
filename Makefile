@@ -1,93 +1,135 @@
 # Variables
-GO=go
-GOFLAGS=-v
-BUILD_DIR=./bin
-VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
-GIT_COMMIT=$(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
+GO := go
+GOFLAGS := -v
+BUILD_DIR := ./bin
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
+GIT_COMMIT := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
 
 # Build flags with version information
-LDFLAGS=-ldflags "-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}"
+LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)"
+
+# Binary names
+MIGRATIONS_BIN := migrations
+LOBBY_AUTH_BIN := lobby-auth
+LOBBY_DATA_BIN := lobby-data
+LOBBY_VIEW_BIN := lobby-view
 
 # Default target
 .PHONY: all
-all: build
+all: build-migrations build-lobby-auth build-lobby-data build-lobby-view
+
+# Ensure build directory exists
+$(BUILD_DIR):
+	@mkdir -p $(BUILD_DIR)
 
 # Build the binaries
-.PHONY: build
-build:
+.PHONY: build-migrations
+build-migrations: $(BUILD_DIR)
+	@echo "Building migrations..."
+	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MIGRATIONS_BIN) ./cmd/migrations
+	@echo "Build complete: $(BUILD_DIR)/$(MIGRATIONS_BIN)"
+
+.PHONY: build-lobby-auth
+build-lobby-auth: $(BUILD_DIR)
 	@echo "Building lobby-auth..."
-	@mkdir -p $(BUILD_DIR)
-	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-auth ./cmd/lobby-auth
-	@echo "Build complete: $(BUILD_DIR)/lobby-auth"
+	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_AUTH_BIN) ./cmd/lobby-auth
+	@echo "Build complete: $(BUILD_DIR)/$(LOBBY_AUTH_BIN)"
+
+.PHONY: build-lobby-data
+build-lobby-data: $(BUILD_DIR)
 	@echo "Building lobby-data..."
-	@mkdir -p $(BUILD_DIR)
-	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-data ./cmd/lobby-data
-	@echo "Build complete: $(BUILD_DIR)/lobby-data"
+	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_DATA_BIN) ./cmd/lobby-data
+	@echo "Build complete: $(BUILD_DIR)/$(LOBBY_DATA_BIN)"
+
+.PHONY: build-lobby-view
+build-lobby-view: $(BUILD_DIR)
 	@echo "Building lobby-view..."
-	@mkdir -p $(BUILD_DIR)
-	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-view ./cmd/lobby-view
-	@echo "Build complete: $(BUILD_DIR)/lobby-view"
+	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_VIEW_BIN) ./cmd/lobby-view
+	@echo "Build complete: $(BUILD_DIR)/$(LOBBY_VIEW_BIN)"
 
 # Build for multiple platforms
 .PHONY: build-all
 build-all: build-linux build-darwin build-windows
 
 .PHONY: build-linux
-build-linux:
+build-linux: $(BUILD_DIR)
 	@echo "Building for Linux..."
-	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-auth-linux-amd64 ./cmd/lobby-auth
-	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-data-linux-amd64 ./cmd/lobby-data
-	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-view-linux-amd64 ./cmd/lobby-view
+	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_AUTH_BIN)-linux-amd64 ./cmd/lobby-auth
+	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_AUTH_BIN)-linux-arm64 ./cmd/lobby-auth
+	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_DATA_BIN)-linux-amd64 ./cmd/lobby-data
+	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_DATA_BIN)-linux-arm64 ./cmd/lobby-data
+	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_VIEW_BIN)-linux-amd64 ./cmd/lobby-view
+	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_VIEW_BIN)-linux-arm64 ./cmd/lobby-view
+	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MIGRATIONS_BIN)-linux-amd64 ./cmd/migrations
+	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MIGRATIONS_BIN)-linux-arm64 ./cmd/migrations
 	@echo "Linux build complete"
 
 .PHONY: build-darwin
-build-darwin:
+build-darwin: $(BUILD_DIR)
 	@echo "Building for macOS..."
-	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-auth-darwin-amd64 ./cmd/lobby-auth
-	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-auth-darwin-arm64 ./cmd/lobby-auth
-	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-data-darwin-amd64 ./cmd/lobby-data
-	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-data-darwin-arm64 ./cmd/lobby-data
-	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-view-darwin-amd64 ./cmd/lobby-view
-	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-view-darwin-arm64 ./cmd/lobby-view
+	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_AUTH_BIN)-darwin-amd64 ./cmd/lobby-auth
+	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_AUTH_BIN)-darwin-arm64 ./cmd/lobby-auth
+	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_DATA_BIN)-darwin-amd64 ./cmd/lobby-data
+	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_DATA_BIN)-darwin-arm64 ./cmd/lobby-data
+	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_VIEW_BIN)-darwin-amd64 ./cmd/lobby-view
+	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_VIEW_BIN)-darwin-arm64 ./cmd/lobby-view
+	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MIGRATIONS_BIN)-darwin-amd64 ./cmd/migrations
+	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MIGRATIONS_BIN)-darwin-arm64 ./cmd/migrations
 	@echo "macOS build complete"
 
 .PHONY: build-windows
-build-windows:
+build-windows: $(BUILD_DIR)
 	@echo "Building for Windows..."
-	@mkdir -p $(BUILD_DIR)
-	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-auth-windows-amd64.exe ./cmd/lobby-auth
-	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-data-windows-amd64.exe ./cmd/lobby-data
-	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-view-windows-amd64.exe ./cmd/lobby-view
+	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_AUTH_BIN)-windows-amd64.exe ./cmd/lobby-auth
+	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_DATA_BIN)-windows-amd64.exe ./cmd/lobby-data
+	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_VIEW_BIN)-windows-amd64.exe ./cmd/lobby-view
+	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MIGRATIONS_BIN)-windows-amd64.exe ./cmd/migrations
 	@echo "Windows build complete"
 
-# Run the lobby auth server
+# Run targets
+.PHONY: run-migrations
+run-migrations: build-migrations
+	@echo "Running migrations..."
+	$(BUILD_DIR)/$(MIGRATIONS_BIN)
+
 .PHONY: run-lobby-auth
-run-lobby-auth: build
+run-lobby-auth: build-lobby-auth
 	@echo "Starting lobby auth server..."
-	@SERVER_PORT=54231 NATS_CLIENT_PREFIX="dev-lobby-auth-" $(BUILD_DIR)/lobby-auth
+	SERVER_PORT=54230 NATS_CLIENT_PREFIX="dev-lobby-auth-" $(BUILD_DIR)/$(LOBBY_AUTH_BIN)
 
-# Run the lobby data server
 .PHONY: run-lobby-data
-run-lobby-data: build
+run-lobby-data: build-lobby-data
 	@echo "Starting lobby data server..."
-	@SERVER_PORT=54230 NATS_CLIENT_PREFIX="dev-lobby-data-" $(BUILD_DIR)/lobby-data
+	SERVER_PORT=54231 NATS_CLIENT_PREFIX="dev-lobby-data-" $(BUILD_DIR)/$(LOBBY_DATA_BIN)
 
-# Run the lobby view server
 .PHONY: run-lobby-view
-run-lobby-view: build
+run-lobby-view: build-lobby-view
 	@echo "Starting lobby view server..."
-	@SERVER_PORT=54001 NATS_CLIENT_PREFIX="dev-lobby-view-" $(BUILD_DIR)/lobby-view
+	SERVER_PORT=54001 NATS_CLIENT_PREFIX="dev-lobby-view-" $(BUILD_DIR)/$(LOBBY_VIEW_BIN)
 
-# Run tests
+# Run all services (requires tmux or separate terminals)
+.PHONY: run-all
+run-all:
+	@if command -v tmux >/dev/null 2>&1; then \
+		echo "Starting all services in tmux..."; \
+		tmux new-session -d -s lobby -n auth "make run-lobby-auth"; \
+		tmux new-window -t lobby -n data "make run-lobby-data"; \
+		tmux new-window -t lobby -n view "make run-lobby-view"; \
+		tmux attach -t lobby; \
+	else \
+		echo "tmux not found. Please run the following commands in separate terminals:"; \
+		echo "  Terminal 1: make run-lobby-auth"; \
+		echo "  Terminal 2: make run-lobby-data"; \
+		echo "  Terminal 3: make run-lobby-view"; \
+	fi
+
+# Test targets
 .PHONY: test
 test:
 	@echo "Running tests..."
 	$(GO) test -v -race -cover ./...
 
-# Run tests with coverage report
 .PHONY: test-coverage
 test-coverage:
 	@echo "Running tests with coverage..."
@@ -95,27 +137,39 @@ test-coverage:
 	$(GO) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
-# Format code
+.PHONY: test-short
+test-short:
+	@echo "Running short tests..."
+	$(GO) test -v -short ./...
+
+# Code quality targets
 .PHONY: fmt
 fmt:
 	@echo "Formatting code..."
 	$(GO) fmt ./...
 	@echo "Code formatted"
 
-# Run linter
 .PHONY: lint
 lint:
 	@echo "Running linter..."
-	@which golangci-lint > /dev/null || (echo "golangci-lint not installed. Install with: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin" && exit 1)
-	golangci-lint run ./...
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run ./...; \
+	else \
+		echo "golangci-lint not installed."; \
+		echo "Install with: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin"; \
+		exit 1; \
+	fi
 
-# Vet code
 .PHONY: vet
 vet:
 	@echo "Running go vet..."
 	$(GO) vet ./...
 
-# Download dependencies
+.PHONY: check
+check: fmt vet lint test
+	@echo "All checks passed!"
+
+# Dependency management
 .PHONY: deps
 deps:
 	@echo "Downloading dependencies..."
@@ -123,7 +177,14 @@ deps:
 	$(GO) mod tidy
 	@echo "Dependencies updated"
 
-# Clean build artifacts
+.PHONY: update
+update:
+	@echo "Updating dependencies..."
+	$(GO) get -u ./...
+	$(GO) mod tidy
+	@echo "Dependencies updated to latest versions"
+
+# Clean targets
 .PHONY: clean
 clean:
 	@echo "Cleaning build artifacts..."
@@ -131,61 +192,138 @@ clean:
 	@rm -f coverage.out coverage.html
 	@echo "Clean complete"
 
-# Install the binary to GOPATH/bin
+.PHONY: clean-all
+clean-all: clean
+	@echo "Cleaning all generated files..."
+	@$(GO) clean -cache
+	@echo "Deep clean complete"
+
+# Install/Uninstall targets
 .PHONY: install
-install:
-	@echo "Installing lobby-auth..."
-	$(GO) install $(LDFLAGS) ./cmd/lobby-auth
-	@echo "Installing lobby-data..."
-	$(GO) install $(LDFLAGS) ./cmd/lobby-data
-	@echo "Installing lobby-view..."
-	$(GO) install $(LDFLAGS) ./cmd/lobby-view
+install: build-migrations build-lobby-auth build-lobby-data build-lobby-view
+	@echo "Installing binaries to GOPATH/bin..."
+	@cp $(BUILD_DIR)/$(MIGRATIONS_BIN) $$(go env GOPATH)/bin/
+	@cp $(BUILD_DIR)/$(LOBBY_AUTH_BIN) $$(go env GOPATH)/bin/
+	@cp $(BUILD_DIR)/$(LOBBY_DATA_BIN) $$(go env GOPATH)/bin/
+	@cp $(BUILD_DIR)/$(LOBBY_VIEW_BIN) $$(go env GOPATH)/bin/
 	@echo "Installation complete"
 
-# Uninstall from GOPATH/bin
 .PHONY: uninstall
 uninstall:
-	@echo "Uninstalling lobby-auth..."
-	@rm -f $(GOPATH)/bin/lobby-auth
-	@echo "Uninstalling lobby-data..."
-	@rm -f $(GOPATH)/bin/lobby-data
-	@echo "Uninstalling lobby-view..."
-	@rm -f $(GOPATH)/bin/lobby-view
+	@echo "Uninstalling binaries from GOPATH/bin..."
+	@rm -f $$(go env GOPATH)/bin/$(MIGRATIONS_BIN)
+	@rm -f $$(go env GOPATH)/bin/$(LOBBY_AUTH_BIN)
+	@rm -f $$(go env GOPATH)/bin/$(LOBBY_DATA_BIN)
+	@rm -f $$(go env GOPATH)/bin/$(LOBBY_VIEW_BIN)
 	@echo "Uninstall complete"
 
-# Development setup - run all three servers in separate terminals
+# Development helpers
 .PHONY: dev
 dev:
-	@echo "To run in development mode, open 3 terminals and run:"
+	@echo "Development Setup Instructions:"
+	@echo "================================"
+	@echo "Option 1: Run with tmux (recommended)"
+	@echo "  make run-all"
+	@echo ""
+	@echo "Option 2: Run in separate terminals"
 	@echo "  Terminal 1: make run-lobby-auth"
 	@echo "  Terminal 2: make run-lobby-data"
 	@echo "  Terminal 3: make run-lobby-view"
+	@echo ""
+	@echo "Option 3: Run migrations first if needed"
+	@echo "  make run-migrations"
 
-# Show version info
+.PHONY: watch
+watch:
+	@if command -v air >/dev/null 2>&1; then \
+		air; \
+	else \
+		echo "Air not installed. Install with: go install github.com/cosmtrek/air@latest"; \
+		exit 1; \
+	fi
+
+# Docker targets
+.PHONY: docker-build
+docker-build:
+	@echo "Building Docker images..."
+	docker build -f docker/lobby-auth.Dockerfile -t lobby-auth:latest .
+	docker build -f docker/lobby-data.Dockerfile -t lobby-data:latest .
+	docker build -f docker/lobby-view.Dockerfile -t lobby-view:latest .
+	@echo "Docker images built"
+
+.PHONY: docker-run
+docker-run:
+	@echo "Running services with Docker Compose..."
+	docker-compose up
+
+# Version and help
 .PHONY: version
 version:
-	@echo "Version: ${VERSION}"
-	@echo "Build Time: ${BUILD_TIME}"
-	@echo "Git Commit: ${GIT_COMMIT}"
+	@echo "Version: $(VERSION)"
+	@echo "Build Time: $(BUILD_TIME)"
+	@echo "Git Commit: $(GIT_COMMIT)"
+	@echo "Go Version: $$(go version)"
 
-# Help target
 .PHONY: help
 help:
-	@echo "Available targets:"
-	@echo "  make build          - Build the binary for current platform"
-	@echo "  make build-all      - Build for Linux, macOS, and Windows"
-	@echo "  make run-lobby-auth - Build and run the lobby auth server"
-	@echo "  make run-lobby-data - Build and run the lobby data server"
-	@echo "  make run-lobby-view - Build and run the lobby view server"
-	@echo "  make test           - Run tests"
-	@echo "  make test-coverage  - Run tests with coverage report"
-	@echo "  make fmt            - Format code"
-	@echo "  make lint           - Run linter (requires golangci-lint)"
-	@echo "  make vet            - Run go vet"
-	@echo "  make deps           - Download and tidy dependencies"
-	@echo "  make clean          - Remove build artifacts"
-	@echo "  make install        - Install binary to GOPATH/bin"
-	@echo "  make uninstall      - Remove binary from GOPATH/bin"
-	@echo "  make dev            - Show development setup instructions"
-	@echo "  make version        - Show version information"
-	@echo "  make help           - Show this help message"
+	@echo "Lobby Services Makefile"
+	@echo "======================="
+	@echo ""
+	@echo "Build targets:"
+	@echo "  make                   - Build all binaries for current platform"
+	@echo "  make build-migrations  - Build the migrations binary"
+	@echo "  make build-lobby-auth  - Build the lobby auth server binary"
+	@echo "  make build-lobby-data  - Build the lobby data server binary"
+	@echo "  make build-lobby-view  - Build the lobby view server binary"
+	@echo "  make build-all         - Build for Linux, macOS, and Windows"
+	@echo "  make build-linux       - Build for Linux (amd64, arm64)"
+	@echo "  make build-darwin      - Build for macOS (amd64, arm64)"
+	@echo "  make build-windows     - Build for Windows (amd64)"
+	@echo ""
+	@echo "Run targets:"
+	@echo "  make run-migrations    - Build and run database migrations"
+	@echo "  make run-lobby-auth    - Build and run the auth server"
+	@echo "  make run-lobby-data    - Build and run the data server"
+	@echo "  make run-lobby-view    - Build and run the view server"
+	@echo "  make run-all           - Run all services (requires tmux)"
+	@echo ""
+	@echo "Test targets:"
+	@echo "  make test              - Run all tests"
+	@echo "  make test-coverage     - Run tests with coverage report"
+	@echo "  make test-short        - Run short tests only"
+	@echo ""
+	@echo "Code quality:"
+	@echo "  make fmt               - Format code"
+	@echo "  make lint              - Run linter (requires golangci-lint)"
+	@echo "  make vet               - Run go vet"
+	@echo "  make check             - Run all quality checks"
+	@echo ""
+	@echo "Dependency management:"
+	@echo "  make deps              - Download and tidy dependencies"
+	@echo "  make update            - Update dependencies to latest versions"
+	@echo ""
+	@echo "Clean targets:"
+	@echo "  make clean             - Remove build artifacts"
+	@echo "  make clean-all         - Deep clean including Go cache"
+	@echo ""
+	@echo "Install targets:"
+	@echo "  make install           - Install binaries to GOPATH/bin"
+	@echo "  make uninstall         - Remove binaries from GOPATH/bin"
+	@echo ""
+	@echo "Development:"
+	@echo "  make dev               - Show development setup instructions"
+	@echo "  make watch             - Run with hot reload (requires air)"
+	@echo ""
+	@echo "Docker:"
+	@echo "  make docker-build      - Build Docker images"
+	@echo "  make docker-run        - Run with Docker Compose"
+	@echo ""
+	@echo "Other:"
+	@echo "  make version           - Show version information"
+	@echo "  make help              - Show this help message"
+
+# Default shell
+SHELL := /bin/bash
+
+# Prevent make from printing directory changes
+MAKEFLAGS += --no-print-directory
