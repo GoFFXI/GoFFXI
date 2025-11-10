@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  GO_VERSION: '1.25.3'  # Update to match your go.mod version
+  GO_VERSION: '1.25.3'
 
 jobs:
   lint:
@@ -73,7 +73,6 @@ jobs:
             arch: arm64
           - os: windows
             arch: amd64
-            ext: .exe
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -84,20 +83,32 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Build binary
+      - name: Build all binaries
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
-          OUTPUT_NAME="goffxi-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
-          go build -v -o "${OUTPUT_NAME}" .
-          echo "Built ${OUTPUT_NAME}"
+          # Set file extension for Windows
+          EXT=""
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            EXT=".exe"
+          fi
 
-      - name: Upload artifact
+          # Build all three binaries
+          for BINARY in lobby-auth lobby-data lobby-view; do
+            OUTPUT_NAME="${BINARY}-${{ matrix.os }}-${{ matrix.arch }}${EXT}"
+            echo "Building ${OUTPUT_NAME}..."
+            go build -v -o "${OUTPUT_NAME}" ./cmd/${BINARY}
+          done
+
+          # List built binaries for verification
+          ls -la lobby-*-${{ matrix.os }}-${{ matrix.arch }}*
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: goffxi-${{ matrix.os }}-${{ matrix.arch }}
-          path: goffxi-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}
+          name: lobby-binaries-${{ matrix.os }}-${{ matrix.arch }}
+          path: lobby-*-${{ matrix.os }}-${{ matrix.arch }}*
           retention-days: 7
 
   compile-check:
@@ -115,5 +126,7 @@ jobs:
 
       - name: Check compilation
         run: |
-          go build -v ./...
+          go build -v ./cmd/lobby-auth
+          go build -v ./cmd/lobby-data
+          go build -v ./cmd/lobby-view
           go vet ./...

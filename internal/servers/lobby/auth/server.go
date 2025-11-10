@@ -4,16 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
-	"sync"
 	"time"
 
-	"github.com/GoFFXI/GoFFXI/internal/config"
-	"github.com/GoFFXI/GoFFXI/internal/database/migrations"
-	"github.com/GoFFXI/GoFFXI/internal/server"
+	"github.com/GoFFXI/GoFFXI/internal/servers/base/tcp"
 )
 
 const (
@@ -21,58 +17,10 @@ const (
 )
 
 type AuthServer struct {
-	*server.Server
+	*tcp.TCPServer
 }
 
-func Run(cfg *config.Config, logger *slog.Logger) error {
-	// setup wait group for goroutines
-	var wg sync.WaitGroup
-
-	// create a context for graceful shutdown
-	ctx, cancelCtx := context.WithCancel(context.Background())
-	defer cancelCtx()
-
-	// setup new AuthServer
-	baseServer, err := server.NewServer(ctx, cfg, logger)
-	if err != nil {
-		return fmt.Errorf("failed to create base server: %w", err)
-	}
-
-	authServer := &AuthServer{
-		Server: baseServer,
-	}
-
-	// connect to NATS server
-	if err = authServer.CreateNATSConnection(); err != nil {
-		return fmt.Errorf("failed to connect to NATS: %w", err)
-	}
-
-	// connect to database
-	if err = authServer.CreateDBConnection(ctx); err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	// run database migrations
-	if err = migrations.Migrate(ctx, authServer.DB().BunDB()); err != nil {
-		return fmt.Errorf("failed to run database migrations: %w", err)
-	}
-
-	//nolint:errcheck // socket will be closed on shutdown
-	defer authServer.Socket().Close()
-
-	// start connection processor goroutine
-	wg.Add(1)
-	go authServer.ProcessConnections(ctx, &wg, authServer.handleConnection)
-
-	// start accepting connections
-	wg.Add(1)
-	go authServer.AcceptConnections(ctx, &wg)
-
-	// wait for shutdown signal
-	return authServer.WaitForShutdown(cancelCtx, &wg)
-}
-
-func (s *AuthServer) handleConnection(ctx context.Context, conn net.Conn) {
+func (s *AuthServer) HandleConnection(ctx context.Context, conn net.Conn) {
 	logger := s.Logger().With("client", conn.RemoteAddr().String())
 	logger.Info("processing connection")
 

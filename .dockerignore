@@ -4,7 +4,9 @@ bin/
 *.dll
 *.so
 *.dylib
-goffxi
+lobby-auth
+lobby-data
+lobby-view
 
 # Test and coverage files
 *.test

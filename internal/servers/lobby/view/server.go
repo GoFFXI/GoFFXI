@@ -3,70 +3,18 @@ package view
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
-	"log/slog"
 	"net"
-	"sync"
 
-	"github.com/GoFFXI/GoFFXI/internal/config"
-	"github.com/GoFFXI/GoFFXI/internal/database/migrations"
 	"github.com/GoFFXI/GoFFXI/internal/lobby/packets"
-	"github.com/GoFFXI/GoFFXI/internal/server"
+	"github.com/GoFFXI/GoFFXI/internal/servers/base/tcp"
 )
 
 type ViewServer struct {
-	*server.Server
+	*tcp.TCPServer
 }
 
-func Run(cfg *config.Config, logger *slog.Logger) error {
-	// setup wait group for goroutines
-	var wg sync.WaitGroup
-
-	// create a context for graceful shutdown
-	ctx, cancelCtx := context.WithCancel(context.Background())
-	defer cancelCtx()
-
-	baseServer, err := server.NewServer(ctx, cfg, logger)
-	if err != nil {
-		return fmt.Errorf("failed to create base server: %w", err)
-	}
-
-	viewServer := &ViewServer{
-		Server: baseServer,
-	}
-
-	// connect to NATS server
-	if err = viewServer.CreateNATSConnection(); err != nil {
-		return fmt.Errorf("failed to connect to NATS: %w", err)
-	}
-
-	// connect to database
-	if err = viewServer.CreateDBConnection(ctx); err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	// run database migrations
-	if err = migrations.Migrate(ctx, viewServer.DB().BunDB()); err != nil {
-		return fmt.Errorf("failed to run database migrations: %w", err)
-	}
-
-	//nolint:errcheck // socket will be closed on shutdown
-	defer viewServer.Socket().Close()
-
-	// start connection processor goroutine
-	wg.Add(1)
-	go viewServer.ProcessConnections(ctx, &wg, viewServer.handleConnection)
-
-	// start accepting connections
-	wg.Add(1)
-	go viewServer.AcceptConnections(ctx, &wg)
-
-	// wait for shutdown signal
-	return viewServer.WaitForShutdown(cancelCtx, &wg)
-}
-
-func (s ViewServer) handleConnection(ctx context.Context, conn net.Conn) {
+func (s *ViewServer) HandleConnection(ctx context.Context, conn net.Conn) {
 	logger := s.Logger().With("client", conn.RemoteAddr().String())
 	logger.Info("new client connection established")
 
@@ -74,7 +22,7 @@ func (s ViewServer) handleConnection(ctx context.Context, conn net.Conn) {
 	sessionCtx := sessionContext{
 		ctx:    ctx,
 		conn:   conn,
-		server: &s,
+		server: s,
 		logger: logger,
 	}
 	defer sessionCtx.Close()

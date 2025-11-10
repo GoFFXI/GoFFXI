@@ -24,7 +24,7 @@ ARG GIT_COMMIT
 # Build the binary
 RUN CGO_ENABLED=0 GOOS=linux go build \
   -ldflags "-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
-  -o goffxi .
+  -o lobby-auth ./cmd/lobby-auth
 
 # Final stage
 FROM alpine:latest
@@ -33,27 +33,23 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 
 # Create non-root user
-RUN addgroup -g 1000 ffxi && \
-  adduser -D -u 1000 -G ffxi ffxi
+RUN addgroup -g 1000 goffxi && \
+  adduser -D -u 1000 -G goffxi goffxi
 
 # Set working directory
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /build/goffxi /app/goffxi
+COPY --from=builder /build/lobby-auth /app/lobby-auth
 
 # Change ownership
-RUN chown -R ffxi:ffxi /app
+RUN chown -R goffxi:goffxi /app
 
 # Switch to non-root user
-USER ffxi
+USER goffxi
 
-# Expose ports for different server roles
-# Auth: 54230, Data: 54231, View: 54001
-EXPOSE 54230 54231 54001
+# Expose port
+EXPOSE 54231
 
 # Set default entrypoint
-ENTRYPOINT ["/app/goffxi"]
-
-# Default command (can be overridden)
-CMD ["--help"]
+ENTRYPOINT ["/app/lobby-auth"]

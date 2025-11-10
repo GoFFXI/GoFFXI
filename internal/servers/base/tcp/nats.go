@@ -1,4 +1,4 @@
-package server
+package tcp
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-func (s *Server) CreateNATSConnection() error {
+func (s *TCPServer) CreateNATSConnection() error {
 	hostname, _ := os.Hostname()
 
 	// create a new NATS connection
@@ -32,17 +32,17 @@ func (s *Server) CreateNATSConnection() error {
 	return nil
 }
 
-func (s *Server) OnNATSDisconnected(_ *nats.Conn, err error) {
+func (s *TCPServer) OnNATSDisconnected(_ *nats.Conn, err error) {
 	s.Logger().Warn("NATS disconnected", "error", err)
 	s.natsConn = nil
 }
 
-func (s *Server) OnNATSReconnected(nc *nats.Conn) {
+func (s *TCPServer) OnNATSReconnected(nc *nats.Conn) {
 	s.Logger().Info("NATS reconnected")
 	s.natsConn = nc
 }
 
-func (s *Server) OnNATSClosed(_ *nats.Conn) {
+func (s *TCPServer) OnNATSClosed(_ *nats.Conn) {
 	s.Logger().Info("NATS connection permanently closed")
 	s.natsConn = nil
 }

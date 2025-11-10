@@ -48,7 +48,6 @@ jobs:
             arch: arm64
           - os: windows
             arch: amd64
-            ext: .exe
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -63,28 +62,45 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Build binary
+      - name: Build all binaries
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
-          OUTPUT_NAME="goffxi-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
           VERSION="${{ steps.version.outputs.version }}"
           BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
           GIT_COMMIT=${GITHUB_SHA}
 
-          go build -v \
-            -ldflags "-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
-            -o "${OUTPUT_NAME}" .
+          # Set file extension for Windows
+          EXT=""
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            EXT=".exe"
+          fi
 
-          # Create tarball for non-Windows platforms
+          # Create temporary directory for binaries
+          mkdir -p dist
+
+          # Build all three binaries
+          for BINARY in lobby-auth lobby-data lobby-view; do
+            OUTPUT_NAME="${BINARY}-${{ matrix.os }}-${{ matrix.arch }}${EXT}"
+            echo "Building ${OUTPUT_NAME}..."
+
+            go build -v \
+              -ldflags "-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
+              -o "dist/${OUTPUT_NAME}" \
+              ./cmd/${BINARY}
+          done
+
+          # Create archive with all binaries
+          cd dist
           if [ "${{ matrix.os }}" != "windows" ]; then
-            tar czf "${OUTPUT_NAME}.tar.gz" "${OUTPUT_NAME}"
-            echo "Created ${OUTPUT_NAME}.tar.gz"
+            # Create tarball for non-Windows platforms
+            tar czf "../lobby-binaries-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" lobby-*
+            echo "Created lobby-binaries-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
           else
             # Create zip for Windows
-            zip "${OUTPUT_NAME%.exe}.zip" "${OUTPUT_NAME}"
-            echo "Created ${OUTPUT_NAME%.exe}.zip"
+            zip -r "../lobby-binaries-${{ matrix.os }}-${{ matrix.arch }}.zip" lobby-*
+            echo "Created lobby-binaries-${{ matrix.os }}-${{ matrix.arch }}.zip"
           fi
 
       - name: Upload artifact
@@ -92,14 +108,20 @@ jobs:
         with:
           name: release-${{ matrix.os }}-${{ matrix.arch }}
           path: |
-            goffxi-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}.tar.gz
-            goffxi-${{ matrix.os }}-${{ matrix.arch }}.zip
+            lobby-binaries-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+            lobby-binaries-${{ matrix.os }}-${{ matrix.arch }}.zip
           retention-days: 1
 
   docker-build:
-    name: Build and Push Docker Image
+    name: Build and Push Docker Images
     runs-on: ubuntu-latest
     needs: test
+    strategy:
+      matrix:
+        service:
+          - lobby-auth
+          - lobby-data
+          - lobby-view
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -121,18 +143,20 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}
           tags: |
             type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: ./docker/${{ matrix.service }}.Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -189,36 +213,100 @@ jobs:
           body: |
             ## Release ${{ github.ref_name }}
 
-            ### Docker Image
+            ### Docker Images
+
+            Three Docker images are available for each service:
+
             ```bash
-            docker pull ${{ env.REGISTRY }}/${{ github.repository }}:${{ github.ref_name }}
+            # Auth service
+            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/lobby-auth:${{ github.ref_name }}
+
+            # Data service
+            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/lobby-data:${{ github.ref_name }}
+
+            # View service
+            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/lobby-view:${{ github.ref_name }}
             ```
 
             ### Installation
 
             #### Binary Installation
-            Download the appropriate binary for your platform from the assets below and make it executable:
+
+            Download the appropriate archive for your platform from the assets below. Each archive contains all three binaries:
+            - `lobby-auth` - Authentication service
+            - `lobby-data` - Data service
+            - `lobby-view` - View service
 
             ```bash
             # Linux/macOS
-            tar -xzf goffxi-<platform>-<arch>.tar.gz
-            chmod +x goffxi-<platform>-<arch>
-            ./goffxi-<platform>-<arch> --help
+            tar -xzf lobby-binaries-<platform>-<arch>.tar.gz
+            chmod +x lobby-auth-<platform>-<arch>
+            chmod +x lobby-data-<platform>-<arch>
+            chmod +x lobby-view-<platform>-<arch>
+
+            # Run services
+            ./lobby-auth-<platform>-<arch>
+            ./lobby-data-<platform>-<arch>
+            ./lobby-view-<platform>-<arch>
 
             # Windows
-            # Extract the zip file and run goffxi-windows-amd64.exe
+            # Extract the zip file and run the .exe files:
+            # lobby-auth-windows-amd64.exe
+            # lobby-data-windows-amd64.exe
+            # lobby-view-windows-amd64.exe
             ```
 
-            #### Docker
+            #### Docker Compose Example
+
+            ```yaml
+            version: '3.8'
+            services:
+              lobby-auth:
+                image: ${{ env.REGISTRY }}/${{ github.repository }}/lobby-auth:${{ github.ref_name }}
+                ports:
+                  - "54230:54230"
+                environment:
+                  - LOG_LEVEL=info
+
+              lobby-data:
+                image: ${{ env.REGISTRY }}/${{ github.repository }}/lobby-data:${{ github.ref_name }}
+                ports:
+                  - "54231:54231"
+                environment:
+                  - LOG_LEVEL=info
+                depends_on:
+                  - lobby-auth
+
+              lobby-view:
+                image: ${{ env.REGISTRY }}/${{ github.repository }}/lobby-view:${{ github.ref_name }}
+                ports:
+                  - "54001:54001"
+                environment:
+                  - LOG_LEVEL=info
+                depends_on:
+                  - lobby-data
+            ```
+
+            #### Running Individual Docker Containers
+
             ```bash
             # Run auth server
-            docker run -p 54230:54230 ${{ env.REGISTRY }}/${{ github.repository }}:${{ github.ref_name }} --role=auth
+            docker run -d \
+              --name lobby-auth \
+              -p 54230:54230 \
+              ${{ env.REGISTRY }}/${{ github.repository }}/lobby-auth:${{ github.ref_name }}
 
             # Run data server
-            docker run -p 54231:54231 ${{ env.REGISTRY }}/${{ github.repository }}:${{ github.ref_name }} --role=data
+            docker run -d \
+              --name lobby-data \
+              -p 54231:54231 \
+              ${{ env.REGISTRY }}/${{ github.repository }}/lobby-data:${{ github.ref_name }}
 
             # Run view server
-            docker run -p 54001:54001 ${{ env.REGISTRY }}/${{ github.repository }}:${{ github.ref_name }} --role=view
+            docker run -d \
+              --name lobby-view \
+              -p 54001:54001 \
+              ${{ env.REGISTRY }}/${{ github.repository }}/lobby-view:${{ github.ref_name }}
             ```
 
             ### Changelog

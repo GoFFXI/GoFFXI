@@ -5,7 +5,6 @@ go 1.25.3
 require github.com/caarlos0/env/v11 v11.3.1 // direct
 
 require (
-	github.com/davecgh/go-spew v1.1.1
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/joho/godotenv v1.5.1
 	github.com/nats-io/nats.go v1.47.0

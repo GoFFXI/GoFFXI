@@ -1,9 +1,7 @@
 # Variables
-BINARY_NAME=goffxi
 GO=go
 GOFLAGS=-v
 BUILD_DIR=./bin
-SRC_DIR=.
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 GIT_COMMIT=$(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
@@ -15,13 +13,21 @@ LDFLAGS=-ldflags "-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X 
 .PHONY: all
 all: build
 
-# Build the binary
+# Build the binaries
 .PHONY: build
 build:
-	@echo "Building $(BINARY_NAME)..."
+	@echo "Building lobby-auth..."
 	@mkdir -p $(BUILD_DIR)
-	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(SRC_DIR)
-	@echo "Build complete: $(BUILD_DIR)/$(BINARY_NAME)"
+	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-auth ./cmd/lobby-auth
+	@echo "Build complete: $(BUILD_DIR)/lobby-auth"
+	@echo "Building lobby-data..."
+	@mkdir -p $(BUILD_DIR)
+	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-data ./cmd/lobby-data
+	@echo "Build complete: $(BUILD_DIR)/lobby-data"
+	@echo "Building lobby-view..."
+	@mkdir -p $(BUILD_DIR)
+	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-view ./cmd/lobby-view
+	@echo "Build complete: $(BUILD_DIR)/lobby-view"
 
 # Build for multiple platforms
 .PHONY: build-all
@@ -31,41 +37,49 @@ build-all: build-linux build-darwin build-windows
 build-linux:
 	@echo "Building for Linux..."
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 $(SRC_DIR)
+	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-auth-linux-amd64 ./cmd/lobby-auth
+	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-data-linux-amd64 ./cmd/lobby-data
+	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-view-linux-amd64 ./cmd/lobby-view
 	@echo "Linux build complete"
 
 .PHONY: build-darwin
 build-darwin:
 	@echo "Building for macOS..."
 	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 $(SRC_DIR)
-	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 $(SRC_DIR)
+	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-auth-darwin-amd64 ./cmd/lobby-auth
+	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-auth-darwin-arm64 ./cmd/lobby-auth
+	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-data-darwin-amd64 ./cmd/lobby-data
+	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-data-darwin-arm64 ./cmd/lobby-data
+	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-view-darwin-amd64 ./cmd/lobby-view
+	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-view-darwin-arm64 ./cmd/lobby-view
 	@echo "macOS build complete"
 
 .PHONY: build-windows
 build-windows:
 	@echo "Building for Windows..."
 	@mkdir -p $(BUILD_DIR)
-	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe $(SRC_DIR)
+	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-auth-windows-amd64.exe ./cmd/lobby-auth
+	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-data-windows-amd64.exe ./cmd/lobby-data
+	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/lobby-view-windows-amd64.exe ./cmd/lobby-view
 	@echo "Windows build complete"
 
-# Run the auth server
-.PHONY: run-auth
-run-auth: build
-	@echo "Starting auth server..."
-	@SERVER_PORT=54231 NATS_CLIENT_PREFIX="auth-" $(BUILD_DIR)/$(BINARY_NAME) --role=auth
+# Run the lobby auth server
+.PHONY: run-lobby-auth
+run-lobby-auth: build
+	@echo "Starting lobby auth server..."
+	@SERVER_PORT=54231 NATS_CLIENT_PREFIX="dev-lobby-auth-" $(BUILD_DIR)/lobby-auth
 
-# Run the data server
-.PHONY: run-data
-run-data: build
-	@echo "Starting data server..."
-	@SERVER_PORT=54230 NATS_CLIENT_PREFIX="data-" $(BUILD_DIR)/$(BINARY_NAME) --role=data
+# Run the lobby data server
+.PHONY: run-lobby-data
+run-lobby-data: build
+	@echo "Starting lobby data server..."
+	@SERVER_PORT=54230 NATS_CLIENT_PREFIX="dev-lobby-data-" $(BUILD_DIR)/lobby-data
 
-# Run the view server
-.PHONY: run-view
-run-view: build
-	@echo "Starting view server..."
-	@SERVER_PORT=54001 NATS_CLIENT_PREFIX="view-" $(BUILD_DIR)/$(BINARY_NAME) --role=view
+# Run the lobby view server
+.PHONY: run-lobby-view
+run-lobby-view: build
+	@echo "Starting lobby view server..."
+	@SERVER_PORT=54001 NATS_CLIENT_PREFIX="dev-lobby-view-" $(BUILD_DIR)/lobby-view
 
 # Run tests
 .PHONY: test
@@ -120,29 +134,32 @@ clean:
 # Install the binary to GOPATH/bin
 .PHONY: install
 install:
-	@echo "Installing $(BINARY_NAME)..."
-	$(GO) install $(LDFLAGS) $(SRC_DIR)
+	@echo "Installing lobby-auth..."
+	$(GO) install $(LDFLAGS) ./cmd/lobby-auth
+	@echo "Installing lobby-data..."
+	$(GO) install $(LDFLAGS) ./cmd/lobby-data
+	@echo "Installing lobby-view..."
+	$(GO) install $(LDFLAGS) ./cmd/lobby-view
 	@echo "Installation complete"
 
 # Uninstall from GOPATH/bin
 .PHONY: uninstall
 uninstall:
-	@echo "Uninstalling $(BINARY_NAME)..."
-	@rm -f $(GOPATH)/bin/$(BINARY_NAME)
+	@echo "Uninstalling lobby-auth..."
+	@rm -f $(GOPATH)/bin/lobby-auth
+	@echo "Uninstalling lobby-data..."
+	@rm -f $(GOPATH)/bin/lobby-data
+	@echo "Uninstalling lobby-view..."
+	@rm -f $(GOPATH)/bin/lobby-view
 	@echo "Uninstall complete"
 
 # Development setup - run all three servers in separate terminals
 .PHONY: dev
 dev:
 	@echo "To run in development mode, open 3 terminals and run:"
-	@echo "  Terminal 1: make run-auth"
-	@echo "  Terminal 2: make run-data"
-	@echo "  Terminal 3: make run-view"
-	@echo ""
-	@echo "Or use environment variables to configure:"
-	@echo "  GOFFXI_AUTH_PORT=54230 make run-auth"
-	@echo "  GOFFXI_DATA_PORT=54231 make run-data"
-	@echo "  GOFFXI_VIEW_PORT=54001 make run-view"
+	@echo "  Terminal 1: make run-lobby-auth"
+	@echo "  Terminal 2: make run-lobby-data"
+	@echo "  Terminal 3: make run-lobby-view"
 
 # Show version info
 .PHONY: version
@@ -157,9 +174,9 @@ help:
 	@echo "Available targets:"
 	@echo "  make build          - Build the binary for current platform"
 	@echo "  make build-all      - Build for Linux, macOS, and Windows"
-	@echo "  make run-auth       - Build and run the auth server"
-	@echo "  make run-data       - Build and run the data server"
-	@echo "  make run-view       - Build and run the view server"
+	@echo "  make run-lobby-auth - Build and run the lobby auth server"
+	@echo "  make run-lobby-data - Build and run the lobby data server"
+	@echo "  make run-lobby-view - Build and run the lobby view server"
 	@echo "  make test           - Run tests"
 	@echo "  make test-coverage  - Run tests with coverage report"
 	@echo "  make fmt            - Format code"

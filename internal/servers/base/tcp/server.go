@@ -1,4 +1,4 @@
-package server
+package tcp
 
 import (
 	"context"
@@ -18,9 +18,11 @@ import (
 	"github.com/GoFFXI/GoFFXI/internal/database"
 )
 
+// ConnectionHandler defines a function type for handling incoming connections.
 type ConnectionHandler func(ctx context.Context, conn net.Conn)
 
-type Server struct {
+// TCPServer represents a TCP server with optional TLS support.
+type TCPServer struct {
 	socket      net.Listener
 	log         *slog.Logger
 	connections chan net.Conn
@@ -29,11 +31,13 @@ type Server struct {
 	db          *database.DBImpl
 }
 
-func NewServer(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*Server, error) {
+// NewTCPServer creates and configures a new TCPServer instance.
+func NewTCPServer(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*TCPServer, error) {
 	var socket net.Listener
 	var cert tls.Certificate
 	var err error
 
+	// Check for TLS configuration
 	if cfg.ServerTLSCertPath != "" && cfg.ServerTLSKeyPath != "" {
 		// start with TLS
 		cert, err = tls.LoadX509KeyPair(cfg.ServerTLSCertPath, cfg.ServerTLSKeyPath)
@@ -63,8 +67,7 @@ func NewServer(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*S
 	}
 
 	logger.Info("server listening", "address", socket.Addr().String())
-
-	srv := Server{
+	srv := TCPServer{
 		socket:      socket,
 		log:         logger,
 		cfg:         cfg,
@@ -74,59 +77,32 @@ func NewServer(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*S
 	return &srv, nil
 }
 
-func (s Server) Config() *config.Config {
+// Config returns the server's configuration.
+func (s *TCPServer) Config() *config.Config {
 	return s.cfg
 }
 
-func (s Server) Logger() *slog.Logger {
+// Logger returns the server's logger.
+func (s *TCPServer) Logger() *slog.Logger {
 	return s.log
 }
 
-func (s Server) Socket() net.Listener {
+// Socket returns the server's network listener.
+func (s *TCPServer) Socket() net.Listener {
 	return s.socket
 }
 
-func (s Server) NATS() *nats.Conn {
+// NATS returns the server's NATS connection.
+func (s *TCPServer) NATS() *nats.Conn {
 	return s.natsConn
 }
 
-func (s Server) DB() *database.DBImpl {
+// DB returns the server's database instance.
+func (s *TCPServer) DB() *database.DBImpl {
 	return s.db
 }
 
-func (s Server) ProcessConnections(ctx context.Context, wg *sync.WaitGroup, handler ConnectionHandler) {
-	defer wg.Done()
-
-	for {
-		select {
-		case <-ctx.Done():
-			s.Logger().Info("stopping connection processor")
-
-			// drain remaining connections
-			for {
-				select {
-				case conn := <-s.connections:
-					if conn != nil {
-						_ = conn.Close()
-					}
-				default:
-					return
-				}
-			}
-		case conn := <-s.connections:
-			// handle each connection in a separate goroutine
-			// this ensures we can process multiple connections concurrently
-			// while still maintaining the order through the channel
-			wg.Add(1)
-			go func(c net.Conn) {
-				defer wg.Done()
-				handler(ctx, c)
-			}(conn)
-		}
-	}
-}
-
-func (s Server) AcceptConnections(ctx context.Context, wg *sync.WaitGroup) {
+func (s *TCPServer) AcceptConnections(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
@@ -168,7 +144,40 @@ func (s Server) AcceptConnections(ctx context.Context, wg *sync.WaitGroup) {
 	}
 }
 
-func (s Server) WaitForShutdown(cancelCtx context.CancelFunc, wg *sync.WaitGroup) error {
+// ProcessConnections processes incoming connections using the provided handler function.
+func (s *TCPServer) ProcessConnections(ctx context.Context, wg *sync.WaitGroup, handler ConnectionHandler) {
+	defer wg.Done()
+
+	for {
+		select {
+		case <-ctx.Done():
+			s.Logger().Info("stopping connection processor")
+
+			// drain remaining connections
+			for {
+				select {
+				case conn := <-s.connections:
+					if conn != nil {
+						_ = conn.Close()
+					}
+				default:
+					return
+				}
+			}
+		case conn := <-s.connections:
+			// handle each connection in a separate goroutine
+			// this ensures we can process multiple connections concurrently
+			// while still maintaining the order through the channel
+			wg.Add(1)
+			go func(c net.Conn) {
+				defer wg.Done()
+				handler(ctx, c)
+			}(conn)
+		}
+	}
+}
+
+func (s *TCPServer) WaitForShutdown(cancelCtx context.CancelFunc, wg *sync.WaitGroup) error {
 	// setup signal handling
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
