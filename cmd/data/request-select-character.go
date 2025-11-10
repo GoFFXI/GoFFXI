@@ -5,8 +5,8 @@ import (
 	"crypto/md5" //nolint:gosec // we are using MD5 for compatibility with FFXI protocol, not for security
 	"encoding/binary"
 	"fmt"
-	"time"
 
+	"github.com/GoFFXI/GoFFXI/internal/constants"
 	"github.com/GoFFXI/GoFFXI/internal/lobby/packets"
 	"github.com/GoFFXI/GoFFXI/internal/tools"
 )
@@ -34,16 +34,64 @@ func NewResponseSelectCharacter() *ResponseSelectCharacter {
 		Header: packets.PacketHeader{
 			PacketSize: 0x0048,
 			Command:    CommandResponseSelectCharacter,
+			Terminator: constants.ResponsePacketTerminator,
 		},
 	}
 }
 
-func (p *ResponseSelectCharacter) Serialize() ([]byte, error) {
+func (p *ResponseSelectCharacter) Serialize() ([]byte, error) { //nolint:gocyclo // it's acceptable because of the multiple writes in specific orders
 	buf := new(bytes.Buffer)
 
-	err := binary.Write(buf, binary.LittleEndian, p)
-	if err != nil {
-		return nil, err
+	// Write header fields individually
+	if err := binary.Write(buf, binary.LittleEndian, p.Header.PacketSize); err != nil {
+		return nil, fmt.Errorf("failed to write packet size: %w", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, p.Header.Terminator); err != nil {
+		return nil, fmt.Errorf("failed to write terminator: %w", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, p.Header.Command); err != nil {
+		return nil, fmt.Errorf("failed to write command: %w", err)
+	}
+
+	// Write identifier as bytes (must be exactly 16 bytes)
+	// If empty, write zeros (will be filled with hash later)
+	if len(p.Header.Identifier[:]) == 0 {
+		if _, err := buf.Write(make([]byte, 16)); err != nil {
+			return nil, fmt.Errorf("failed to write empty identifier: %w", err)
+		}
+	} else {
+		if len(p.Header.Identifier) != 16 {
+			return nil, fmt.Errorf("identifier must be exactly 16 bytes, got %d", len(p.Header.Identifier))
+		}
+		if _, err := buf.Write(p.Header.Identifier[:]); err != nil {
+			return nil, fmt.Errorf("failed to write identifier: %w", err)
+		}
+	}
+
+	// now write the rest of the fields
+	if err := binary.Write(buf, binary.LittleEndian, p.FFXIID); err != nil {
+		return nil, fmt.Errorf("failed to write FFXIID: %w", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, p.FFXIDWorld); err != nil {
+		return nil, fmt.Errorf("failed to write FFXIDWorld: %w", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, p.CharacterName); err != nil {
+		return nil, fmt.Errorf("failed to write CharacterName: %w", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, p.ServerID); err != nil {
+		return nil, fmt.Errorf("failed to write ServerID: %w", err)
+	}
+	if err := binary.Write(buf, binary.BigEndian, p.MapServerIP); err != nil {
+		return nil, fmt.Errorf("failed to write MapServerIP: %w", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, p.MapServerPort); err != nil {
+		return nil, fmt.Errorf("failed to write MapServerPort: %w", err)
+	}
+	if err := binary.Write(buf, binary.BigEndian, p.SearchServerIP); err != nil {
+		return nil, fmt.Errorf("failed to write SearchServerIP: %w", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, p.SearchServerPort); err != nil {
+		return nil, fmt.Errorf("failed to write SearchServerPort: %w", err)
 	}
 
 	return buf.Bytes(), nil
@@ -71,7 +119,7 @@ func (s *DataServer) handleRequestSelectCharacter(sessionCtx *sessionContext, da
 
 	// extract the magic blowfish key from the request
 	var magicKey [20]uint8
-	copy(magicKey[:], data[1:1+len(magicKey)])
+	copy(magicKey[:], data[1:21])
 	logger.Info("extracted magic key", "magicKey", magicKey)
 
 	// make sure there is a session account ID
@@ -155,8 +203,6 @@ func (s *DataServer) handleRequestSelectCharacter(sessionCtx *sessionContext, da
 
 		return true
 	}
-
-	time.Sleep(time.Second * 2)
 
 	// instruct the view server to send the response packet to the client
 	logger.Info("instructing view server to send response packet to client")

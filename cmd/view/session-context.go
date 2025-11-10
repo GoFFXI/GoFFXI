@@ -68,6 +68,16 @@ func (s *sessionContext) processNATSSendRequest(msg *nats.Msg) {
 		s.logger.Error("failed to write NATS data to connection", "error", err)
 		s.Close()
 	}
+
+	// check for shutdown command
+	if len(msg.Data) >= 12 {
+		command := binary.LittleEndian.Uint32(msg.Data[8:12])
+
+		if command == 0x000B {
+			s.logger.Info("received shutdown command from NATS data")
+			s.Close()
+		}
+	}
 }
 
 func (s *sessionContext) processNATSAccountID(msg *nats.Msg) {

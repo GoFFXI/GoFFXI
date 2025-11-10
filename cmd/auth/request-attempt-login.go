@@ -129,6 +129,16 @@ func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Con
 		return false
 	}
 
+	// clear the previous sessions for this account
+	err = s.DB().DeleteAccountSessions(ctx, account.ID)
+	if err != nil {
+		logger.Error("failed to clear previous account sessions", "error", err)
+		response := NewResponseResult(ErrorCodeAttemptLoginError)
+		_, _ = conn.Write(response.ToJSON())
+
+		return false
+	}
+
 	// create the account session
 	accountSession := &database.AccountSession{
 		AccountID:   account.ID,

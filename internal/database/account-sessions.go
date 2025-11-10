@@ -33,7 +33,7 @@ func (m *AccountSession) BeforeUpdate(_ context.Context, _ bun.Query) error {
 type AccountSessionQueries interface {
 	GetAccountSessionBySessionKey(ctx context.Context, sessionKey string) (AccountSession, error)
 	CreateAccountSession(ctx context.Context, accountSession *AccountSession) (AccountSession, error)
-	DeleteAccountSession(ctx context.Context, accountID uint32) error
+	DeleteAccountSessions(ctx context.Context, accountID uint32) error
 }
 
 func (q *queriesImpl) GetAccountSessionBySessionKey(ctx context.Context, sessionKey string) (AccountSession, error) {
@@ -64,7 +64,7 @@ func (q *queriesImpl) CreateAccountSession(ctx context.Context, accountSession *
 	return *accountSession, nil
 }
 
-func (q *queriesImpl) DeleteAccountSession(ctx context.Context, accountID uint32) error {
+func (q *queriesImpl) DeleteAccountSessions(ctx context.Context, accountID uint32) error {
 	_, err := q.db.NewDelete().Model((*AccountSession)(nil)).Where("account_id = ?", accountID).Exec(ctx)
 	return err
 }

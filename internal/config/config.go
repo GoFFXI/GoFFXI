@@ -127,13 +127,13 @@ type Config struct {
 	MapServerIP string `env:"MAP_SERVER_IP" default:""`
 
 	// MapServerPort is the port of the map server to direct clients to
-	MapServerPort uint32 `env:"MAP_SERVER_PORT" default:"55000"`
+	MapServerPort uint32 `env:"MAP_SERVER_PORT" default:"54230"`
 
 	// SearchServerIP is the IP address of the search server to direct clients to
 	SearchServerIP string `env:"SEARCH_SERVER_IP" default:""`
 
 	// SearchServerPort is the port of the search server to direct clients to
-	SearchServerPort uint32 `env:"SEARCH_SERVER_PORT" default:"55010"`
+	SearchServerPort uint32 `env:"SEARCH_SERVER_PORT" default:"54002"`
 }
 
 func ParseConfigFromEnv() Config {
