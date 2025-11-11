@@ -14,10 +14,11 @@ MIGRATIONS_BIN := migrations
 LOBBY_AUTH_BIN := lobby-auth
 LOBBY_DATA_BIN := lobby-data
 LOBBY_VIEW_BIN := lobby-view
+MAP_ROUTER_BIN := map-router
 
 # Default target
 .PHONY: all
-all: build-migrations build-lobby-auth build-lobby-data build-lobby-view
+all: build-migrations build-lobby-auth build-lobby-data build-lobby-view build-map-router
 
 # Ensure build directory exists
 $(BUILD_DIR):
@@ -48,6 +49,12 @@ build-lobby-view: $(BUILD_DIR)
 	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_VIEW_BIN) ./cmd/lobby-view
 	@echo "Build complete: $(BUILD_DIR)/$(LOBBY_VIEW_BIN)"
 
+.PHONY: build-map-router
+build-map-router: $(BUILD_DIR)
+	@echo "Building map-router..."
+	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_ROUTER_BIN) ./cmd/map-router
+	@echo "Build complete: $(BUILD_DIR)/$(MAP_ROUTER_BIN)"
+
 # Build for multiple platforms
 .PHONY: build-all
 build-all: build-linux build-darwin build-windows
@@ -63,6 +70,8 @@ build-linux: $(BUILD_DIR)
 	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_VIEW_BIN)-linux-arm64 ./cmd/lobby-view
 	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MIGRATIONS_BIN)-linux-amd64 ./cmd/migrations
 	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MIGRATIONS_BIN)-linux-arm64 ./cmd/migrations
+	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_ROUTER_BIN)-linux-amd64 ./cmd/map-router
+	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_ROUTER_BIN)-linux-arm64 ./cmd/map-router
 	@echo "Linux build complete"
 
 .PHONY: build-darwin
@@ -76,6 +85,8 @@ build-darwin: $(BUILD_DIR)
 	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_VIEW_BIN)-darwin-arm64 ./cmd/lobby-view
 	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MIGRATIONS_BIN)-darwin-amd64 ./cmd/migrations
 	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MIGRATIONS_BIN)-darwin-arm64 ./cmd/migrations
+	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_ROUTER_BIN)-darwin-amd64 ./cmd/map-router
+	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_ROUTER_BIN)-darwin-arm64 ./cmd/map-router
 	@echo "macOS build complete"
 
 .PHONY: build-windows
@@ -85,6 +96,7 @@ build-windows: $(BUILD_DIR)
 	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_DATA_BIN)-windows-amd64.exe ./cmd/lobby-data
 	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_VIEW_BIN)-windows-amd64.exe ./cmd/lobby-view
 	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MIGRATIONS_BIN)-windows-amd64.exe ./cmd/migrations
+	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_ROUTER_BIN)-windows-amd64.exe ./cmd/map-router
 	@echo "Windows build complete"
 
 # Run targets
@@ -96,17 +108,22 @@ run-migrations: build-migrations
 .PHONY: run-lobby-auth
 run-lobby-auth: build-lobby-auth
 	@echo "Starting lobby auth server..."
-	SERVER_PORT=54230 NATS_CLIENT_PREFIX="dev-lobby-auth-" $(BUILD_DIR)/$(LOBBY_AUTH_BIN)
+	SERVER_PORT=54231 NATS_CLIENT_PREFIX="dev-lobby-auth-" $(BUILD_DIR)/$(LOBBY_AUTH_BIN)
 
 .PHONY: run-lobby-data
 run-lobby-data: build-lobby-data
 	@echo "Starting lobby data server..."
-	SERVER_PORT=54231 NATS_CLIENT_PREFIX="dev-lobby-data-" $(BUILD_DIR)/$(LOBBY_DATA_BIN)
+	SERVER_PORT=54230 NATS_CLIENT_PREFIX="dev-lobby-data-" $(BUILD_DIR)/$(LOBBY_DATA_BIN)
 
 .PHONY: run-lobby-view
 run-lobby-view: build-lobby-view
 	@echo "Starting lobby view server..."
 	SERVER_PORT=54001 NATS_CLIENT_PREFIX="dev-lobby-view-" $(BUILD_DIR)/$(LOBBY_VIEW_BIN)
+
+.PHONY: run-map-router
+run-map-router: build-map-router
+	@echo "Starting map router server..."
+	SERVER_PORT=54230 NATS_CLIENT_PREFIX="dev-map-router-" $(BUILD_DIR)/$(MAP_ROUTER_BIN)
 
 # Run all services (requires tmux or separate terminals)
 .PHONY: run-all
@@ -116,12 +133,14 @@ run-all:
 		tmux new-session -d -s lobby -n auth "make run-lobby-auth"; \
 		tmux new-window -t lobby -n data "make run-lobby-data"; \
 		tmux new-window -t lobby -n view "make run-lobby-view"; \
+		tmux new-window -t lobby -n map-router "make run-map-router"; \
 		tmux attach -t lobby; \
 	else \
 		echo "tmux not found. Please run the following commands in separate terminals:"; \
 		echo "  Terminal 1: make run-lobby-auth"; \
 		echo "  Terminal 2: make run-lobby-data"; \
 		echo "  Terminal 3: make run-lobby-view"; \
+		echo "  Terminal 4: make run-map-router"; \
 	fi
 
 # Test targets
@@ -200,12 +219,13 @@ clean-all: clean
 
 # Install/Uninstall targets
 .PHONY: install
-install: build-migrations build-lobby-auth build-lobby-data build-lobby-view
+install: build-migrations build-lobby-auth build-lobby-data build-lobby-view build-map-router
 	@echo "Installing binaries to GOPATH/bin..."
 	@cp $(BUILD_DIR)/$(MIGRATIONS_BIN) $$(go env GOPATH)/bin/
 	@cp $(BUILD_DIR)/$(LOBBY_AUTH_BIN) $$(go env GOPATH)/bin/
 	@cp $(BUILD_DIR)/$(LOBBY_DATA_BIN) $$(go env GOPATH)/bin/
 	@cp $(BUILD_DIR)/$(LOBBY_VIEW_BIN) $$(go env GOPATH)/bin/
+	@cp $(BUILD_DIR)/$(MAP_ROUTER_BIN) $$(go env GOPATH)/bin/
 	@echo "Installation complete"
 
 .PHONY: uninstall
@@ -215,6 +235,7 @@ uninstall:
 	@rm -f $$(go env GOPATH)/bin/$(LOBBY_AUTH_BIN)
 	@rm -f $$(go env GOPATH)/bin/$(LOBBY_DATA_BIN)
 	@rm -f $$(go env GOPATH)/bin/$(LOBBY_VIEW_BIN)
+	@rm -f $$(go env GOPATH)/bin/$(MAP_ROUTER_BIN)
 	@echo "Uninstall complete"
 
 # Development helpers
@@ -229,6 +250,7 @@ dev:
 	@echo "  Terminal 1: make run-lobby-auth"
 	@echo "  Terminal 2: make run-lobby-data"
 	@echo "  Terminal 3: make run-lobby-view"
+	@echo "  Terminal 4: make run-map-router"
 	@echo ""
 	@echo "Option 3: Run migrations first if needed"
 	@echo "  make run-migrations"
@@ -249,6 +271,7 @@ docker-build:
 	docker build -f docker/lobby-auth.Dockerfile -t lobby-auth:latest .
 	docker build -f docker/lobby-data.Dockerfile -t lobby-data:latest .
 	docker build -f docker/lobby-view.Dockerfile -t lobby-view:latest .
+	docker build -f docker/map-router.Dockerfile -t map-router:latest .
 	@echo "Docker images built"
 
 .PHONY: docker-run
@@ -275,6 +298,7 @@ help:
 	@echo "  make build-lobby-auth  - Build the lobby auth server binary"
 	@echo "  make build-lobby-data  - Build the lobby data server binary"
 	@echo "  make build-lobby-view  - Build the lobby view server binary"
+	@echo "  make build-map-router  - Build the map router server binary"
 	@echo "  make build-all         - Build for Linux, macOS, and Windows"
 	@echo "  make build-linux       - Build for Linux (amd64, arm64)"
 	@echo "  make build-darwin      - Build for macOS (amd64, arm64)"
@@ -285,6 +309,7 @@ help:
 	@echo "  make run-lobby-auth    - Build and run the auth server"
 	@echo "  make run-lobby-data    - Build and run the data server"
 	@echo "  make run-lobby-view    - Build and run the view server"
+	@echo "  make run-map-router    - Build and run the map router server"
 	@echo "  make run-all           - Run all services (requires tmux)"
 	@echo ""
 	@echo "Test targets:"

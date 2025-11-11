@@ -20,6 +20,13 @@ import (
 	"github.com/GoFFXI/GoFFXI/internal/database/migrations"
 )
 
+// version information - to be set during build time
+var (
+	Version   = "dev"
+	BuildDate = "unknown"
+	GitCommit = "none"
+)
+
 func main() {
 	// load .env file automatically
 	err := godotenv.Load()
@@ -51,6 +58,9 @@ func main() {
 		logger.Error("failed to create database connection", "error", err)
 		os.Exit(1)
 	}
+
+	// some house-keeping
+	logger.Info("migrations started", "version", Version, "buildDate", BuildDate, "gitCommit", GitCommit)
 
 	// run migrations
 	if err = migrations.Migrate(ctx, db.BunDB()); err != nil {

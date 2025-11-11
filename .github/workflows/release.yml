@@ -80,7 +80,7 @@ jobs:
           # Create temporary directory for binaries
           mkdir -p dist
 
-          # Build all three binaries
+          # Build all three lobby binaries
           for BINARY in lobby-auth lobby-data lobby-view; do
             OUTPUT_NAME="${BINARY}-${{ matrix.os }}-${{ matrix.arch }}${EXT}"
             echo "Building ${OUTPUT_NAME}..."
@@ -91,16 +91,25 @@ jobs:
               ./cmd/${BINARY}
           done
 
+          # Build map-router binary
+          OUTPUT_NAME="map-router-${{ matrix.os }}-${{ matrix.arch }}${EXT}"
+          echo "Building ${OUTPUT_NAME}..."
+
+          go build -v \
+            -ldflags "-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
+            -o "dist/${OUTPUT_NAME}" \
+            ./cmd/map-router
+
           # Create archive with all binaries
           cd dist
           if [ "${{ matrix.os }}" != "windows" ]; then
             # Create tarball for non-Windows platforms
-            tar czf "../lobby-binaries-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" lobby-*
-            echo "Created lobby-binaries-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
+            tar czf "../binaries-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" lobby-* map-router-*
+            echo "Created binaries-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
           else
             # Create zip for Windows
-            zip -r "../lobby-binaries-${{ matrix.os }}-${{ matrix.arch }}.zip" lobby-*
-            echo "Created lobby-binaries-${{ matrix.os }}-${{ matrix.arch }}.zip"
+            zip -r "../binaries-${{ matrix.os }}-${{ matrix.arch }}.zip" lobby-* map-router-*
+            echo "Created binaries-${{ matrix.os }}-${{ matrix.arch }}.zip"
           fi
 
       - name: Upload artifact
@@ -108,8 +117,8 @@ jobs:
         with:
           name: release-${{ matrix.os }}-${{ matrix.arch }}
           path: |
-            lobby-binaries-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
-            lobby-binaries-${{ matrix.os }}-${{ matrix.arch }}.zip
+            binaries-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+            binaries-${{ matrix.os }}-${{ matrix.arch }}.zip
           retention-days: 1
 
   docker-build:
@@ -122,6 +131,7 @@ jobs:
           - lobby-auth
           - lobby-data
           - lobby-view
+          - map-router
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -215,45 +225,52 @@ jobs:
 
             ### Docker Images
 
-            Three Docker images are available for each service:
+            Four Docker images are available for each service:
 
             ```bash
-            # Auth service
+            # lobby-auth service
             docker pull ${{ env.REGISTRY }}/${{ github.repository }}/lobby-auth:${{ github.ref_name }}
 
-            # Data service
+            # lobby-data service
             docker pull ${{ env.REGISTRY }}/${{ github.repository }}/lobby-data:${{ github.ref_name }}
 
-            # View service
+            # lobby-view service
             docker pull ${{ env.REGISTRY }}/${{ github.repository }}/lobby-view:${{ github.ref_name }}
+
+            # map-router service
+            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/map-router:${{ github.ref_name }}
             ```
 
             ### Installation
 
             #### Binary Installation
 
-            Download the appropriate archive for your platform from the assets below. Each archive contains all three binaries:
+            Download the appropriate archive for your platform from the assets below. Each archive contains all four binaries:
             - `lobby-auth` - Authentication service
             - `lobby-data` - Data service
             - `lobby-view` - View service
+            - `map-router` - Map Router service
 
             ```bash
             # Linux/macOS
-            tar -xzf lobby-binaries-<platform>-<arch>.tar.gz
+            tar -xzf binaries-<platform>-<arch>.tar.gz
             chmod +x lobby-auth-<platform>-<arch>
             chmod +x lobby-data-<platform>-<arch>
             chmod +x lobby-view-<platform>-<arch>
+            chmod +x map-router-<platform>-<arch>
 
             # Run services
             ./lobby-auth-<platform>-<arch>
             ./lobby-data-<platform>-<arch>
             ./lobby-view-<platform>-<arch>
+            ./map-router-<platform>-<arch>
 
             # Windows
             # Extract the zip file and run the .exe files:
             # lobby-auth-windows-amd64.exe
             # lobby-data-windows-amd64.exe
             # lobby-view-windows-amd64.exe
+            # map-router-windows-amd64.exe
             ```
 
             #### Docker Compose Example
@@ -285,28 +302,41 @@ jobs:
                   - LOG_LEVEL=info
                 depends_on:
                   - lobby-data
+
+              map-router:
+                image: ${{ env.REGISTRY }}/${{ github.repository }}/map-router:${{ github.ref_name }}
+                ports:
+                  - "54230:54230/udp"
+                environment:
+                  - LOG_LEVEL=info
             ```
 
             #### Running Individual Docker Containers
 
             ```bash
-            # Run auth server
+            # Run lobby-auth server
             docker run -d \
               --name lobby-auth \
               -p 54230:54230 \
               ${{ env.REGISTRY }}/${{ github.repository }}/lobby-auth:${{ github.ref_name }}
 
-            # Run data server
+            # Run lobby-data server
             docker run -d \
               --name lobby-data \
               -p 54231:54231 \
               ${{ env.REGISTRY }}/${{ github.repository }}/lobby-data:${{ github.ref_name }}
 
-            # Run view server
+            # Run lobby-view server
             docker run -d \
               --name lobby-view \
               -p 54001:54001 \
               ${{ env.REGISTRY }}/${{ github.repository }}/lobby-view:${{ github.ref_name }}
+
+            # Run map-router server
+            docker run -d \
+              --name map-router \
+              -p 54230:54230/udp \
+              ${{ env.REGISTRY }}/${{ github.repository }}/map-router:${{ github.ref_name }}
             ```
 
             ### Changelog

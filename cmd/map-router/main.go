@@ -12,8 +12,8 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/GoFFXI/GoFFXI/internal/config"
-	"github.com/GoFFXI/GoFFXI/internal/servers/base/tcp"
-	"github.com/GoFFXI/GoFFXI/internal/servers/lobby/view"
+	"github.com/GoFFXI/GoFFXI/internal/servers/base/udp"
+	maprouter "github.com/GoFFXI/GoFFXI/internal/servers/map-router"
 )
 
 // version information - to be set during build time
@@ -58,46 +58,42 @@ func main() {
 	// create a context for graceful shutdown
 	ctx, cancelCtx := context.WithCancel(context.Background())
 
-	// setup a new lobby view server
-	baseServer, err := tcp.NewTCPServer(ctx, &cfg, logger)
+	// setup a new map router server
+	baseServer, err := udp.NewUDPServer(&cfg, logger)
 	if err != nil {
-		logger.Error("failed to create base server", "error", err)
+		logger.Error("could not create base server", "error", err)
 		os.Exit(1)
 	}
 
-	viewServer := &view.ViewServer{
-		TCPServer: baseServer,
+	mapRouterServer := &maprouter.MapRouterServer{
+		UDPServer: baseServer,
 	}
 
 	// connect to NATS server
-	if err = viewServer.CreateNATSConnection(); err != nil {
+	if err = mapRouterServer.CreateNATSConnection(); err != nil {
 		logger.Error("failed to connect to NATS", "error", err)
 		os.Exit(1)
 	}
 
 	// connect to database
-	if err = viewServer.CreateDBConnection(ctx); err != nil {
+	if err = mapRouterServer.CreateDBConnection(ctx); err != nil {
 		logger.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
 
 	//nolint:errcheck // socket will be closed on shutdown
-	defer viewServer.Socket().Close()
+	defer mapRouterServer.Socket().Close()
 
 	// some house-keeping
-	logger.Info("lobby-view server started", "version", Version, "buildDate", BuildDate, "gitCommit", GitCommit)
+	logger.Info("map-router server started", "version", Version, "buildDate", BuildDate, "gitCommit", GitCommit)
 	defer cancelCtx()
 
 	// start connection processor goroutine
 	wg.Add(1)
-	go viewServer.ProcessConnections(ctx, &wg, viewServer.HandleConnection)
-
-	// start accepting connections
-	wg.Add(1)
-	go viewServer.AcceptConnections(ctx, &wg)
+	go mapRouterServer.ProcessConnections(ctx, &wg, mapRouterServer.HandlePacket)
 
 	// wait for shutdown signal
-	if err = viewServer.WaitForShutdown(cancelCtx, &wg); err != nil {
+	if err = mapRouterServer.WaitForShutdown(cancelCtx, &wg); err != nil {
 		logger.Error("error during shutdown", "error", err)
 	}
 }

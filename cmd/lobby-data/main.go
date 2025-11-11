@@ -85,7 +85,7 @@ func main() {
 	defer dataServer.Socket().Close()
 
 	// some house-keeping
-	logger.Info("lobby data server started", "version", Version, "buildDate", BuildDate, "gitCommit", GitCommit)
+	logger.Info("lobby-data server started", "version", Version, "buildDate", BuildDate, "gitCommit", GitCommit)
 	defer cancelCtx()
 
 	// start connection processor goroutine

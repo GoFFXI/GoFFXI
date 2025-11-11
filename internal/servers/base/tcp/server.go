@@ -102,6 +102,7 @@ func (s *TCPServer) DB() *database.DBImpl {
 	return s.db
 }
 
+// AcceptConnections starts accepting incoming TCP connections.
 func (s *TCPServer) AcceptConnections(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 

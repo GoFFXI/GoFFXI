@@ -7,6 +7,8 @@ bin/
 lobby-auth
 lobby-data
 lobby-view
+migrations
+map-router
 
 # Test and coverage files
 *.test
