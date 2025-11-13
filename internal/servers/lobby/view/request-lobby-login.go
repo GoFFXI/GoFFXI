@@ -2,12 +2,12 @@ package view
 
 import (
 	"bytes"
-	"crypto/md5" //nolint:gosec // game has to have this
+	"crypto/md5"
 	"encoding/binary"
 	"fmt"
 
 	"github.com/GoFFXI/GoFFXI/internal/constants"
-	"github.com/GoFFXI/GoFFXI/internal/lobby/packets"
+	"github.com/GoFFXI/GoFFXI/internal/packets/lobby"
 )
 
 const (
@@ -70,7 +70,7 @@ func NewRequestLobbyLogin(data []byte) (*RequestLobbyLogin, error) {
 
 // Total size: 40 bytes
 type ResponseLobbyLogin struct {
-	Header packets.PacketHeader
+	Header lobby.PacketHeader
 
 	// Body (12 bytes)
 	Key              uint32 // 0x4FE050AD
@@ -81,7 +81,7 @@ type ResponseLobbyLogin struct {
 // NewResponseLobbyLogin creates a new login response packet
 func NewResponseLobbyLogin(expansions, features uint32) (*ResponseLobbyLogin, error) {
 	response := &ResponseLobbyLogin{
-		Header: packets.PacketHeader{
+		Header: lobby.PacketHeader{
 			PacketSize: 0x0028, // Fixed size for this packet
 			Terminator: constants.ResponsePacketTerminator,
 			Command:    CommandResponseLobbyLogin,
@@ -112,7 +112,7 @@ func (r *ResponseLobbyLogin) CalculateAndSetHash() error {
 	}
 
 	// Calculate and set MD5 hash
-	hash := md5.Sum(data) //nolint:gosec // game has to have this
+	hash := md5.Sum(data)
 	r.Header.Identifier = hash
 
 	return nil

@@ -23,6 +23,9 @@ type Config struct {
 	// ServerPort is the port the server will listen on
 	ServerPort int `env:"SERVER_PORT" default:"54231"`
 
+	// MapInstanceID is the ID of this map instance server
+	MapInstanceID uint16 `env:"MAP_INSTANCE_ID" default:"0"`
+
 	// MaxServerConnections is the maximum number of concurrent connections the server will accept
 	MaxServerConnections int `env:"MAX_SERVER_CONNECTIONS" default:"1000"`
 

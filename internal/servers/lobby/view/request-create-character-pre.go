@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"unicode"
 
-	"github.com/GoFFXI/GoFFXI/internal/lobby/packets"
+	"github.com/GoFFXI/GoFFXI/internal/packets/lobby"
 )
 
 const (
@@ -47,7 +47,7 @@ func (s *ViewServer) handleRequestCreateCharacterPre(sessionCtx *sessionContext,
 	req, err := NewRequestCreateCharacterPre(request)
 	if err != nil {
 		logger.Error("failed to parse request", "error", err)
-		s.sendErrorResponse(sessionCtx, packets.ErrorCodeIncorrectCharacterParameters)
+		s.sendErrorResponse(sessionCtx, lobby.ErrorCodeIncorrectCharacterParameters)
 
 		return true
 	}
@@ -57,7 +57,7 @@ func (s *ViewServer) handleRequestCreateCharacterPre(sessionCtx *sessionContext,
 	for _, char := range characterName {
 		if !unicode.IsLetter(char) {
 			logger.Warn("character name contains non-alphabetic characters")
-			s.sendErrorResponse(sessionCtx, packets.ErrorCodeCharacterNameInvalid)
+			s.sendErrorResponse(sessionCtx, lobby.ErrorCodeCharacterNameInvalid)
 
 			return false
 		}
@@ -66,7 +66,7 @@ func (s *ViewServer) handleRequestCreateCharacterPre(sessionCtx *sessionContext,
 	// make sure the character name length is valid
 	if len(characterName) < 3 || len(characterName) > 15 {
 		logger.Warn("character name length invalid")
-		s.sendErrorResponse(sessionCtx, packets.ErrorCodeCharacterNameInvalid)
+		s.sendErrorResponse(sessionCtx, lobby.ErrorCodeCharacterNameInvalid)
 
 		return false
 	}
@@ -75,14 +75,14 @@ func (s *ViewServer) handleRequestCreateCharacterPre(sessionCtx *sessionContext,
 	exists, err := s.DB().CharacterNameExists(sessionCtx.ctx, characterName)
 	if err != nil {
 		logger.Error("failed to check if character name exists", "error", err)
-		s.sendErrorResponse(sessionCtx, packets.ErrorCodeFailedToRegisterWithNameServer)
+		s.sendErrorResponse(sessionCtx, lobby.ErrorCodeFailedToRegisterWithNameServer)
 
 		return true
 	}
 
 	if exists {
 		logger.Warn("character name already in use", "name", characterName)
-		s.sendErrorResponse(sessionCtx, packets.ErrorCodeCharacterNameInvalid)
+		s.sendErrorResponse(sessionCtx, lobby.ErrorCodeCharacterNameInvalid)
 
 		return true
 	}
@@ -91,7 +91,7 @@ func (s *ViewServer) handleRequestCreateCharacterPre(sessionCtx *sessionContext,
 	worldName := string(bytes.TrimRight(req.WorldName[:], "\x00"))
 	if worldName != s.Config().WorldName {
 		logger.Warn("invalid world name", "worldName", worldName)
-		s.sendErrorResponse(sessionCtx, packets.ErrorCodeFailedToRegisterWithNameServer)
+		s.sendErrorResponse(sessionCtx, lobby.ErrorCodeFailedToRegisterWithNameServer)
 
 		return false
 	}

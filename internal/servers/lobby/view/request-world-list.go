@@ -2,7 +2,7 @@ package view
 
 import (
 	"bytes"
-	"crypto/md5" //nolint:gosec // game has to have this
+	"crypto/md5"
 	"encoding/binary"
 	"fmt"
 
@@ -89,7 +89,7 @@ func (r *ResponseQueryWorldList) CalculateAndSetHash() error {
 	}
 
 	// Calculate and set MD5 hash
-	r.Identifier = md5.Sum(data) //nolint:gosec // game requires this
+	r.Identifier = md5.Sum(data)
 	return nil
 }
 

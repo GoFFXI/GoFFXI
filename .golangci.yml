@@ -85,6 +85,11 @@ linters:
     gocyclo:
       min-complexity: 15
 
+    gosec:
+      excludes:
+        - G401  # Detect the usage of weak cryptographic primitives
+        - G501  # Blocklisted import crypto/md5
+
     mnd:
       checks:
         - argument

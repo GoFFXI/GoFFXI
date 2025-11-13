@@ -6,7 +6,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/GoFFXI/GoFFXI/internal/lobby/packets"
+	"github.com/GoFFXI/GoFFXI/internal/packets/lobby"
 	"github.com/GoFFXI/GoFFXI/internal/servers/base/tcp"
 )
 
@@ -60,7 +60,7 @@ func (s *ViewServer) HandleConnection(ctx context.Context, conn net.Conn) {
 }
 
 func (s ViewServer) parseIncomingRequest(sessionCtx *sessionContext, request []byte) bool {
-	header, err := packets.NewPacketHeader(request)
+	header, err := lobby.NewPacketHeader(request)
 	if err != nil {
 		sessionCtx.logger.Error("failed to parse request header", "error", err)
 		return true
@@ -105,7 +105,7 @@ func (s ViewServer) parseIncomingRequest(sessionCtx *sessionContext, request []b
 }
 
 func (s *ViewServer) sendErrorResponse(sessionCtx *sessionContext, errorCode uint32) {
-	response, err := packets.NewResponseError(errorCode)
+	response, err := lobby.NewResponseError(errorCode)
 	if err != nil {
 		return
 	}

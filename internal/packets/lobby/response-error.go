@@ -1,8 +1,8 @@
-package packets
+package lobby
 
 import (
 	"bytes"
-	"crypto/md5" //nolint:gosec // game has to have this
+	"crypto/md5"
 	"encoding/binary"
 	"fmt"
 
@@ -61,7 +61,7 @@ func (r *ResponseError) CalculateAndSetHash() error {
 	}
 
 	// Calculate and set MD5 hash
-	hash := md5.Sum(data) //nolint:gosec // game has to have this
+	hash := md5.Sum(data)
 	r.Identifier = hash
 
 	return nil

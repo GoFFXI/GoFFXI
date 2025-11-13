@@ -1,4 +1,4 @@
-package packets
+package lobby
 
 // CharacterInfo represents the character information structure used in various packets
 // and shared across the FFXI server architecture.

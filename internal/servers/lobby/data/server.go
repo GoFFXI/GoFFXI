@@ -6,7 +6,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/GoFFXI/GoFFXI/internal/lobby/packets"
+	"github.com/GoFFXI/GoFFXI/internal/packets/lobby"
 	"github.com/GoFFXI/GoFFXI/internal/servers/base/tcp"
 )
 
@@ -101,7 +101,7 @@ func (s *DataServer) parseIncomingRequest(sessionCtx *sessionContext, request []
 }
 
 func (s *DataServer) sendErrorResponse(sessionCtx *sessionContext) {
-	response, err := packets.NewResponseError(packets.ErrorCodeUnableToConnectToLobbyServer)
+	response, err := lobby.NewResponseError(lobby.ErrorCodeUnableToConnectToLobbyServer)
 	if err != nil {
 		return
 	}

@@ -15,10 +15,11 @@ LOBBY_AUTH_BIN := lobby-auth
 LOBBY_DATA_BIN := lobby-data
 LOBBY_VIEW_BIN := lobby-view
 MAP_ROUTER_BIN := map-router
+MAP_INSTANCE_BIN := map-instance
 
 # Default target
 .PHONY: all
-all: build-migrations build-lobby-auth build-lobby-data build-lobby-view build-map-router
+all: build-migrations build-lobby-auth build-lobby-data build-lobby-view build-map-router build-map-instance
 
 # Ensure build directory exists
 $(BUILD_DIR):
@@ -55,6 +56,12 @@ build-map-router: $(BUILD_DIR)
 	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_ROUTER_BIN) ./cmd/map-router
 	@echo "Build complete: $(BUILD_DIR)/$(MAP_ROUTER_BIN)"
 
+.PHONY: build-map-instance
+build-map-instance: $(BUILD_DIR)
+	@echo "Building map-instance..."
+	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_INSTANCE_BIN) ./cmd/map-instance
+	@echo "Build complete: $(BUILD_DIR)/$(MAP_INSTANCE_BIN)"
+
 # Build for multiple platforms
 .PHONY: build-all
 build-all: build-linux build-darwin build-windows
@@ -72,6 +79,8 @@ build-linux: $(BUILD_DIR)
 	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MIGRATIONS_BIN)-linux-arm64 ./cmd/migrations
 	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_ROUTER_BIN)-linux-amd64 ./cmd/map-router
 	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_ROUTER_BIN)-linux-arm64 ./cmd/map-router
+	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_INSTANCE_BIN)-linux-amd64 ./cmd/map-instance
+	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_INSTANCE_BIN)-linux-arm64 ./cmd/map-instance
 	@echo "Linux build complete"
 
 .PHONY: build-darwin
@@ -87,6 +96,8 @@ build-darwin: $(BUILD_DIR)
 	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MIGRATIONS_BIN)-darwin-arm64 ./cmd/migrations
 	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_ROUTER_BIN)-darwin-amd64 ./cmd/map-router
 	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_ROUTER_BIN)-darwin-arm64 ./cmd/map-router
+	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_INSTANCE_BIN)-darwin-amd64 ./cmd/map-instance
+	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_INSTANCE_BIN)-darwin-arm64 ./cmd/map-instance
 	@echo "macOS build complete"
 
 .PHONY: build-windows
@@ -97,6 +108,7 @@ build-windows: $(BUILD_DIR)
 	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(LOBBY_VIEW_BIN)-windows-amd64.exe ./cmd/lobby-view
 	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MIGRATIONS_BIN)-windows-amd64.exe ./cmd/migrations
 	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_ROUTER_BIN)-windows-amd64.exe ./cmd/map-router
+	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(MAP_INSTANCE_BIN)-windows-amd64.exe ./cmd/map-instance
 	@echo "Windows build complete"
 
 # Run targets
@@ -125,6 +137,11 @@ run-map-router: build-map-router
 	@echo "Starting map router server..."
 	SERVER_PORT=54230 NATS_CLIENT_PREFIX="dev-map-router-" $(BUILD_DIR)/$(MAP_ROUTER_BIN)
 
+.PHONY: run-map-instance
+run-map-instance: build-map-instance
+	@echo "Starting map instance server..."
+	NATS_CLIENT_PREFIX="dev-map-instance-" $(BUILD_DIR)/$(MAP_INSTANCE_BIN)
+
 # Run all services (requires tmux or separate terminals)
 .PHONY: run-all
 run-all:
@@ -134,6 +151,7 @@ run-all:
 		tmux new-window -t lobby -n data "make run-lobby-data"; \
 		tmux new-window -t lobby -n view "make run-lobby-view"; \
 		tmux new-window -t lobby -n map-router "make run-map-router"; \
+		tmux new-window -t lobby -n map-instance "make run-map-instance"; \
 		tmux attach -t lobby; \
 	else \
 		echo "tmux not found. Please run the following commands in separate terminals:"; \
@@ -141,6 +159,7 @@ run-all:
 		echo "  Terminal 2: make run-lobby-data"; \
 		echo "  Terminal 3: make run-lobby-view"; \
 		echo "  Terminal 4: make run-map-router"; \
+		echo "  Terminal 5: make run-map-instance"; \
 	fi
 
 # Test targets
@@ -226,6 +245,7 @@ install: build-migrations build-lobby-auth build-lobby-data build-lobby-view bui
 	@cp $(BUILD_DIR)/$(LOBBY_DATA_BIN) $$(go env GOPATH)/bin/
 	@cp $(BUILD_DIR)/$(LOBBY_VIEW_BIN) $$(go env GOPATH)/bin/
 	@cp $(BUILD_DIR)/$(MAP_ROUTER_BIN) $$(go env GOPATH)/bin/
+	@cp $(BUILD_DIR)/$(MAP_INSTANCE_BIN) $$(go env GOPATH)/bin/
 	@echo "Installation complete"
 
 .PHONY: uninstall
@@ -236,6 +256,7 @@ uninstall:
 	@rm -f $$(go env GOPATH)/bin/$(LOBBY_DATA_BIN)
 	@rm -f $$(go env GOPATH)/bin/$(LOBBY_VIEW_BIN)
 	@rm -f $$(go env GOPATH)/bin/$(MAP_ROUTER_BIN)
+	@rm -f $$(go env GOPATH)/bin/$(MAP_INSTANCE_BIN)
 	@echo "Uninstall complete"
 
 # Development helpers
@@ -251,6 +272,7 @@ dev:
 	@echo "  Terminal 2: make run-lobby-data"
 	@echo "  Terminal 3: make run-lobby-view"
 	@echo "  Terminal 4: make run-map-router"
+	@echo "  Terminal 5: make run-map-instance"
 	@echo ""
 	@echo "Option 3: Run migrations first if needed"
 	@echo "  make run-migrations"
@@ -272,12 +294,8 @@ docker-build:
 	docker build -f docker/lobby-data.Dockerfile -t lobby-data:latest .
 	docker build -f docker/lobby-view.Dockerfile -t lobby-view:latest .
 	docker build -f docker/map-router.Dockerfile -t map-router:latest .
+	docker build -f docker/map-instance.Dockerfile -t map-instance:latest .
 	@echo "Docker images built"
-
-.PHONY: docker-run
-docker-run:
-	@echo "Running services with Docker Compose..."
-	docker-compose up
 
 # Version and help
 .PHONY: version
@@ -293,59 +311,59 @@ help:
 	@echo "======================="
 	@echo ""
 	@echo "Build targets:"
-	@echo "  make                   - Build all binaries for current platform"
-	@echo "  make build-migrations  - Build the migrations binary"
-	@echo "  make build-lobby-auth  - Build the lobby auth server binary"
-	@echo "  make build-lobby-data  - Build the lobby data server binary"
-	@echo "  make build-lobby-view  - Build the lobby view server binary"
-	@echo "  make build-map-router  - Build the map router server binary"
-	@echo "  make build-all         - Build for Linux, macOS, and Windows"
-	@echo "  make build-linux       - Build for Linux (amd64, arm64)"
-	@echo "  make build-darwin      - Build for macOS (amd64, arm64)"
-	@echo "  make build-windows     - Build for Windows (amd64)"
+	@echo "  make                    - Build all binaries for current platform"
+	@echo "  make build-migrations   - Build the migrations binary"
+	@echo "  make build-lobby-auth   - Build the lobby auth server binary"
+	@echo "  make build-lobby-data   - Build the lobby data server binary"
+	@echo "  make build-lobby-view   - Build the lobby view server binary"
+	@echo "  make build-map-router   - Build the map router server binary"
+	@echo "  make build-map-instance - Build the map instance server binary"
+	@echo "  make build-all          - Build for Linux, macOS, and Windows"
+	@echo "  make build-linux        - Build for Linux (amd64, arm64)"
+	@echo "  make build-darwin       - Build for macOS (amd64, arm64)"
+	@echo "  make build-windows      - Build for Windows (amd64)"
 	@echo ""
 	@echo "Run targets:"
-	@echo "  make run-migrations    - Build and run database migrations"
-	@echo "  make run-lobby-auth    - Build and run the auth server"
-	@echo "  make run-lobby-data    - Build and run the data server"
-	@echo "  make run-lobby-view    - Build and run the view server"
-	@echo "  make run-map-router    - Build and run the map router server"
-	@echo "  make run-all           - Run all services (requires tmux)"
+	@echo "  make run-migrations     - Build and run database migrations"
+	@echo "  make run-lobby-auth     - Build and run the auth server"
+	@echo "  make run-lobby-data     - Build and run the data server"
+	@echo "  make run-lobby-view     - Build and run the view server"
+	@echo "  make run-map-router     - Build and run the map router server"
+	@echo "  make run-all            - Run all services (requires tmux)"
 	@echo ""
 	@echo "Test targets:"
-	@echo "  make test              - Run all tests"
-	@echo "  make test-coverage     - Run tests with coverage report"
-	@echo "  make test-short        - Run short tests only"
+	@echo "  make test               - Run all tests"
+	@echo "  make test-coverage      - Run tests with coverage report"
+	@echo "  make test-short         - Run short tests only"
 	@echo ""
 	@echo "Code quality:"
-	@echo "  make fmt               - Format code"
-	@echo "  make lint              - Run linter (requires golangci-lint)"
-	@echo "  make vet               - Run go vet"
-	@echo "  make check             - Run all quality checks"
+	@echo "  make fmt                - Format code"
+	@echo "  make lint               - Run linter (requires golangci-lint)"
+	@echo "  make vet                - Run go vet"
+	@echo "  make check              - Run all quality checks"
 	@echo ""
 	@echo "Dependency management:"
-	@echo "  make deps              - Download and tidy dependencies"
-	@echo "  make update            - Update dependencies to latest versions"
+	@echo "  make deps               - Download and tidy dependencies"
+	@echo "  make update             - Update dependencies to latest versions"
 	@echo ""
 	@echo "Clean targets:"
-	@echo "  make clean             - Remove build artifacts"
-	@echo "  make clean-all         - Deep clean including Go cache"
+	@echo "  make clean              - Remove build artifacts"
+	@echo "  make clean-all          - Deep clean including Go cache"
 	@echo ""
 	@echo "Install targets:"
-	@echo "  make install           - Install binaries to GOPATH/bin"
-	@echo "  make uninstall         - Remove binaries from GOPATH/bin"
+	@echo "  make install            - Install binaries to GOPATH/bin"
+	@echo "  make uninstall          - Remove binaries from GOPATH/bin"
 	@echo ""
 	@echo "Development:"
-	@echo "  make dev               - Show development setup instructions"
-	@echo "  make watch             - Run with hot reload (requires air)"
+	@echo "  make dev                - Show development setup instructions"
+	@echo "  make watch              - Run with hot reload (requires air)"
 	@echo ""
 	@echo "Docker:"
-	@echo "  make docker-build      - Build Docker images"
-	@echo "  make docker-run        - Run with Docker Compose"
+	@echo "  make docker-build       - Build Docker images"
 	@echo ""
 	@echo "Other:"
-	@echo "  make version           - Show version information"
-	@echo "  make help              - Show this help message"
+	@echo "  make version            - Show version information"
+	@echo "  make help               - Show this help message"
 
 # Default shell
 SHELL := /bin/bash

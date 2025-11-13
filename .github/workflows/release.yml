@@ -80,8 +80,8 @@ jobs:
           # Create temporary directory for binaries
           mkdir -p dist
 
-          # Build all three lobby binaries
-          for BINARY in lobby-auth lobby-data lobby-view; do
+          # Build all of the binaries
+          for BINARY in lobby-auth lobby-data lobby-view map-router map-instance; do
             OUTPUT_NAME="${BINARY}-${{ matrix.os }}-${{ matrix.arch }}${EXT}"
             echo "Building ${OUTPUT_NAME}..."
 
@@ -91,24 +91,15 @@ jobs:
               ./cmd/${BINARY}
           done
 
-          # Build map-router binary
-          OUTPUT_NAME="map-router-${{ matrix.os }}-${{ matrix.arch }}${EXT}"
-          echo "Building ${OUTPUT_NAME}..."
-
-          go build -v \
-            -ldflags "-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
-            -o "dist/${OUTPUT_NAME}" \
-            ./cmd/map-router
-
           # Create archive with all binaries
           cd dist
           if [ "${{ matrix.os }}" != "windows" ]; then
             # Create tarball for non-Windows platforms
-            tar czf "../binaries-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" lobby-* map-router-*
+            tar czf "../binaries-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" lobby-* map-*
             echo "Created binaries-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
           else
             # Create zip for Windows
-            zip -r "../binaries-${{ matrix.os }}-${{ matrix.arch }}.zip" lobby-* map-router-*
+            zip -r "../binaries-${{ matrix.os }}-${{ matrix.arch }}.zip" lobby-* map-*
             echo "Created binaries-${{ matrix.os }}-${{ matrix.arch }}.zip"
           fi
 
@@ -132,6 +123,7 @@ jobs:
           - lobby-data
           - lobby-view
           - map-router
+          - map-instance
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -239,6 +231,9 @@ jobs:
 
             # map-router service
             docker pull ${{ env.REGISTRY }}/${{ github.repository }}/map-router:${{ github.ref_name }}
+
+            # map-instance service
+            docker pull ${{ env.REGISTRY }}/${{ github.repository }}/map-instance:${{ github.ref_name }}
             ```
 
             ### Installation
@@ -250,6 +245,7 @@ jobs:
             - `lobby-data` - Data service
             - `lobby-view` - View service
             - `map-router` - Map Router service
+            - `map-instance` - Map Instance service
 
             ```bash
             # Linux/macOS
@@ -258,12 +254,14 @@ jobs:
             chmod +x lobby-data-<platform>-<arch>
             chmod +x lobby-view-<platform>-<arch>
             chmod +x map-router-<platform>-<arch>
+            chmod +x map-instance-<platform>-<arch>
 
             # Run services
             ./lobby-auth-<platform>-<arch>
             ./lobby-data-<platform>-<arch>
             ./lobby-view-<platform>-<arch>
             ./map-router-<platform>-<arch>
+            ./map-instance-<platform>-<arch>
 
             # Windows
             # Extract the zip file and run the .exe files:
@@ -271,6 +269,7 @@ jobs:
             # lobby-data-windows-amd64.exe
             # lobby-view-windows-amd64.exe
             # map-router-windows-amd64.exe
+            # map-instance-windows-amd64.exe
             ```
 
             #### Docker Compose Example
@@ -309,6 +308,11 @@ jobs:
                   - "54230:54230/udp"
                 environment:
                   - LOG_LEVEL=info
+
+              map-instance:
+                image: ${{ env.REGISTRY }}/${{ github.repository }}/map-instance:${{ github.ref_name }}
+                environment:
+                  - LOG_LEVEL=info
             ```
 
             #### Running Individual Docker Containers
@@ -337,6 +341,11 @@ jobs:
               --name map-router \
               -p 54230:54230/udp \
               ${{ env.REGISTRY }}/${{ github.repository }}/map-router:${{ github.ref_name }}
+
+            # Run map-instance server
+            docker run -d \
+              --name map-instance \
+              ${{ env.REGISTRY }}/${{ github.repository }}/map-instance:${{ github.ref_name }}
             ```
 
             ### Changelog

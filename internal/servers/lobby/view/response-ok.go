@@ -2,12 +2,12 @@ package view
 
 import (
 	"bytes"
-	"crypto/md5" //nolint:gosec // game has to have this
+	"crypto/md5"
 	"encoding/binary"
 	"fmt"
 
 	"github.com/GoFFXI/GoFFXI/internal/constants"
-	"github.com/GoFFXI/GoFFXI/internal/lobby/packets"
+	"github.com/GoFFXI/GoFFXI/internal/packets/lobby"
 )
 
 const (
@@ -15,14 +15,14 @@ const (
 )
 
 type ResponseOK struct {
-	Header packets.PacketHeader
+	Header lobby.PacketHeader
 
 	_ uint32 // Padding to make total size 32 bytes
 }
 
 func NewResponseOK() (*ResponseOK, error) {
 	response := &ResponseOK{
-		Header: packets.PacketHeader{
+		Header: lobby.PacketHeader{
 			PacketSize: 0x0020, // Fixed size for this packet
 			Terminator: constants.ResponsePacketTerminator,
 			Command:    CommandResponseOK,
@@ -50,7 +50,7 @@ func (r *ResponseOK) CalculateAndSetHash() error {
 	}
 
 	// Calculate and set MD5 hash
-	hash := md5.Sum(data) //nolint:gosec // game has to have this
+	hash := md5.Sum(data)
 	r.Header.Identifier = hash
 
 	return nil

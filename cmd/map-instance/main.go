@@ -12,8 +12,7 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/GoFFXI/GoFFXI/internal/config"
-	"github.com/GoFFXI/GoFFXI/internal/servers/base/udp"
-	"github.com/GoFFXI/GoFFXI/internal/servers/map/router"
+	"github.com/GoFFXI/GoFFXI/internal/servers/map/instance"
 )
 
 // version information - to be set during build time
@@ -58,40 +57,23 @@ func main() {
 	// create a context for graceful shutdown
 	ctx, cancelCtx := context.WithCancel(context.Background())
 
-	// setup a new map router server
-	baseServer, err := udp.NewUDPServer(&cfg, logger)
+	// create and run the instance server
+	instanceWorker, err := instance.NewInstanceWorker(ctx, &cfg, logger)
 	if err != nil {
-		logger.Error("could not create base server", "error", err)
+		logger.Error("could not create instance worker", "error", err)
 		os.Exit(1)
 	}
-
-	mapRouterServer := router.NewMapRouterServer(baseServer)
-
-	// connect to NATS server
-	if err = mapRouterServer.CreateNATSConnection(); err != nil {
-		logger.Error("failed to connect to NATS", "error", err)
-		os.Exit(1)
-	}
-
-	// connect to database
-	if err = mapRouterServer.CreateDBConnection(ctx); err != nil {
-		logger.Error("failed to connect to database", "error", err)
-		os.Exit(1)
-	}
-
-	//nolint:errcheck // socket will be closed on shutdown
-	defer mapRouterServer.Socket().Close()
 
 	// some house-keeping
-	logger.Info("map-router server started", "version", Version, "buildDate", BuildDate, "gitCommit", GitCommit)
+	logger.Info("map-instance worker started", "version", Version, "buildDate", BuildDate, "gitCommit", GitCommit)
 	defer cancelCtx()
 
-	// start connection processor goroutine
+	// start processing packets
 	wg.Add(1)
-	go mapRouterServer.ProcessConnections(ctx, &wg, mapRouterServer.HandleIncomingPacket)
+	go instanceWorker.StartProcessingPackets()
 
 	// wait for shutdown signal
-	if err = mapRouterServer.WaitForShutdown(cancelCtx, &wg); err != nil {
+	if err = instanceWorker.WaitForShutdown(cancelCtx, &wg); err != nil {
 		logger.Error("error during shutdown", "error", err)
 	}
 }

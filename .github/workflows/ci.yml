@@ -94,21 +94,16 @@ jobs:
             EXT=".exe"
           fi
 
-          # Build all three lobby binaries
-          for BINARY in lobby-auth lobby-data lobby-view; do
+          # Build all of the binaries
+          for BINARY in lobby-auth lobby-data lobby-view map-router map-instance; do
             OUTPUT_NAME="${BINARY}-${{ matrix.os }}-${{ matrix.arch }}${EXT}"
             echo "Building ${OUTPUT_NAME}..."
             go build -v -o "${OUTPUT_NAME}" ./cmd/${BINARY}
           done
 
-          # Build map-router binary
-          OUTPUT_NAME="map-router-${{ matrix.os }}-${{ matrix.arch }}${EXT}"
-          echo "Building ${OUTPUT_NAME}..."
-          go build -v -o "${OUTPUT_NAME}" ./cmd/map-router
-
           # List built binaries for verification
           ls -la lobby-*-${{ matrix.os }}-${{ matrix.arch }}*
-          ls -la map-router-${{ matrix.os }}-${{ matrix.arch }}*
+          ls -la map-*-${{ matrix.os }}-${{ matrix.arch }}*
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
@@ -116,7 +111,7 @@ jobs:
           name: binaries-${{ matrix.os }}-${{ matrix.arch }}
           path: |
             lobby-*-${{ matrix.os }}-${{ matrix.arch }}*
-            map-router-${{ matrix.os }}-${{ matrix.arch }}*
+            map-*-${{ matrix.os }}-${{ matrix.arch }}*
           retention-days: 7
 
   compile-check:
@@ -138,4 +133,5 @@ jobs:
           go build -v ./cmd/lobby-data
           go build -v ./cmd/lobby-view
           go build -v ./cmd/map-router
+          go build -v ./cmd/map-instance
           go vet ./...

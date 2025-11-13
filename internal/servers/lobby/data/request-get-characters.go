@@ -2,13 +2,13 @@ package data
 
 import (
 	"bytes"
-	"crypto/md5" //nolint:gosec // we are using MD5 for compatibility with FFXI protocol, not for security
+	"crypto/md5"
 	"encoding/binary"
 	"fmt"
 
 	"github.com/GoFFXI/GoFFXI/internal/constants"
 	"github.com/GoFFXI/GoFFXI/internal/database"
-	"github.com/GoFFXI/GoFFXI/internal/lobby/packets"
+	"github.com/GoFFXI/GoFFXI/internal/packets/lobby"
 )
 
 const (
@@ -129,20 +129,20 @@ func (p *ResponseCharacterList) Serialize() ([]byte, error) {
 }
 
 type ResponseChrInfo2Sub struct {
-	FFXIID         uint32                // Unique character ID
-	FFXIIDWorld    uint16                // Character's in-game server ID
-	WorldID        uint16                // Server world ID
-	Status         uint16                // 1=Available, 2=Disabled (unpaid)
-	Flags          uint8                 // Bit 0: RenameFlag, Bit 1: RaceChangeFlag
-	FFXIIDWorldTbl uint8                 // Character's in-game server ID (hi-byte)
-	CharacterName  [16]byte              // Character name (null-terminated)
-	WorldName      [16]byte              // World name (null-terminated)
-	CharacterInfo  packets.CharacterInfo // Character creation/appearance data
+	FFXIID         uint32              // Unique character ID
+	FFXIIDWorld    uint16              // Character's in-game server ID
+	WorldID        uint16              // Server world ID
+	Status         uint16              // 1=Available, 2=Disabled (unpaid)
+	Flags          uint8               // Bit 0: RenameFlag, Bit 1: RaceChangeFlag
+	FFXIIDWorldTbl uint8               // Character's in-game server ID (hi-byte)
+	CharacterName  [16]byte            // Character name (null-terminated)
+	WorldName      [16]byte            // World name (null-terminated)
+	CharacterInfo  lobby.CharacterInfo // Character creation/appearance data
 }
 
 // https://github.com/atom0s/XiPackets/blob/main/lobby/S2C_0x0020_ResponseChrInfo2.md
 type ResponseChrInfo2 struct {
-	Header packets.PacketHeader
+	Header lobby.PacketHeader
 
 	Characters uint32                // Number of character entries
 	CharInfo   []ResponseChrInfo2Sub // Array of character information
@@ -150,7 +150,7 @@ type ResponseChrInfo2 struct {
 
 func NewResponseChrInfo2(characters []ResponseChrInfo2Sub) (*ResponseChrInfo2, error) {
 	packet := &ResponseChrInfo2{
-		Header: packets.PacketHeader{
+		Header: lobby.PacketHeader{
 			Terminator: constants.ResponsePacketTerminator,
 			Command:    CommandResponseChrInfo2,
 		},
@@ -247,7 +247,7 @@ func (p *ResponseChrInfo2) SerializeWithHash() ([]byte, error) {
 	}
 
 	// calculate the MD5 hash over the entire packet
-	p.Header.Identifier = md5.Sum(packet) //nolint:gosec // we are using MD5 for compatibility with FFXI protocol, not for security
+	p.Header.Identifier = md5.Sum(packet)
 
 	// re-serialize packet with correct hash
 	packet, err = p.serialize()
@@ -384,7 +384,7 @@ func ConvertDBCharacterToResponseCharInfo2Sub(character *database.Character, wor
 	copy(char.WorldName[:], worldBytes)
 
 	// now, fill in character info
-	char.CharacterInfo = packets.CharacterInfo{
+	char.CharacterInfo = lobby.CharacterInfo{
 		RaceID:       uint16(character.Looks.Race),
 		MainJobID:    character.Stats.MainJob,
 		SubJobID:     character.Stats.SubJob,
@@ -418,7 +418,7 @@ func CreateEmptySlot() ResponseChrInfo2Sub {
 	}
 
 	// Empty character info structure - most fields stay at zero
-	char.CharacterInfo = packets.CharacterInfo{
+	char.CharacterInfo = lobby.CharacterInfo{
 		JobLevels: [16]uint8{1}, // First slot always 1
 	}
 

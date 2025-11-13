@@ -2,12 +2,13 @@ package data
 
 import (
 	"bytes"
-	"crypto/md5" //nolint:gosec // we are using MD5 for compatibility with FFXI protocol, not for security
+	"crypto/md5"
 	"encoding/binary"
 	"fmt"
+	"strings"
 
 	"github.com/GoFFXI/GoFFXI/internal/constants"
-	"github.com/GoFFXI/GoFFXI/internal/lobby/packets"
+	"github.com/GoFFXI/GoFFXI/internal/packets/lobby"
 	"github.com/GoFFXI/GoFFXI/internal/tools"
 )
 
@@ -17,7 +18,7 @@ const (
 )
 
 type ResponseSelectCharacter struct {
-	Header packets.PacketHeader
+	Header lobby.PacketHeader
 
 	FFXIID           uint32
 	FFXIDWorld       uint32
@@ -31,7 +32,7 @@ type ResponseSelectCharacter struct {
 
 func NewResponseSelectCharacter() *ResponseSelectCharacter {
 	return &ResponseSelectCharacter{
-		Header: packets.PacketHeader{
+		Header: lobby.PacketHeader{
 			PacketSize: 0x0048,
 			Command:    CommandResponseSelectCharacter,
 			Terminator: constants.ResponsePacketTerminator,
@@ -107,7 +108,7 @@ func (p *ResponseSelectCharacter) CalculateAndSetHash() error {
 	}
 
 	// calculate and set MD5 hash
-	hash := md5.Sum(data) //nolint:gosec // game has to have this
+	hash := md5.Sum(data)
 	p.Header.Identifier = hash
 
 	return nil
@@ -210,7 +211,16 @@ func (s *DataServer) handleRequestSelectCharacter(sessionCtx *sessionContext, da
 
 	// todo: update character flags for online status
 	// todo: update character stats for zoning = 2
-	// todo: log the user's ip address in account ip records
+
+	// update the account session with the client ip and selected character id
+	clientIP := strings.Split(sessionCtx.conn.RemoteAddr().String(), ":")[0]
+	err = s.DB().UpdateAccountSession(sessionCtx.ctx, character.AccountID, character.ID, clientIP)
+	if err != nil {
+		logger.Error("failed to update account session with client ip", "error", err)
+		s.sendErrorResponse(sessionCtx)
+
+		return false
+	}
 
 	return false
 }
