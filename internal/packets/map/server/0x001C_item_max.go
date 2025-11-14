@@ -1,16 +1,42 @@
 package server
 
-import mapPackets "github.com/GoFFXI/GoFFXI/internal/packets/map"
+import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
+)
+
+type ContainerKind uint8
 
 const (
-	PacketTypeItemMax = 0x001C
-	PacketSizeItemMax = 0x0064
+	ItemMaxPacketType = 0x001C
+	ItemMaxPacketSize = 0x0064
+)
+
+// Container indices for FFXI inventory system
+const (
+	ContainerKindInventory ContainerKind = iota // Main inventory
+	ContainerKindMogSafe
+	ContainerKindStorage
+	ContainerKindTempItems
+	ContainerKindMogLocker
+	ContainerKindMogSatchel
+	ContainerKindMogSack
+	ContainerKindMogCase
+	ContainerKindMogWardrobe
+	ContainerKindMogSafe2
+	ContainerKindMogWardrobe2
+	ContainerKindMogWardrobe3
+	ContainerKindMogWardrobe4
+	ContainerKindMogWardrobe5
+	ContainerKindMogWardrobe6
+	ContainerKindMogWardrobe7
+	ContainerKindMogWardrobe8
+	ContainerKindRecycleBin
 )
 
 // https://github.com/atom0s/XiPackets/tree/main/world/server/0x001C
 type ItemMaxPacket struct {
-	Header mapPackets.PacketHeader
-
 	// The characters various inventory container sizes.
 	//
 	// This array holds the maximum space of a container. The client uses the
@@ -39,4 +65,23 @@ type ItemMaxPacket struct {
 
 	// Padding; unused
 	Padding48 [28]uint8
+}
+
+func (p *ItemMaxPacket) Type() uint16 {
+	return ItemMaxPacketType
+}
+
+func (p *ItemMaxPacket) Size() uint16 {
+	return ItemMaxPacketSize
+}
+
+func (p *ItemMaxPacket) Serialize() ([]byte, error) {
+	buf := new(bytes.Buffer)
+
+	// Write all fields in order
+	if err := binary.Write(buf, binary.LittleEndian, p); err != nil {
+		return nil, fmt.Errorf("failed to write packet: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }

@@ -28,26 +28,33 @@ func (s *sessionContext) SetupSubscriptions(sessionKey string) error {
 	}
 
 	// add the close request subscription
-	subsription, err := s.server.NATS().Subscribe(fmt.Sprintf("session.%s.view.close", sessionKey), s.processNATSCloseRequest)
-	if err != nil {
+	subject := fmt.Sprintf("session.%s.view.close", sessionKey)
+	if err := s.addNATSSubscription(subject, s.processNATSCloseRequest); err != nil {
 		return fmt.Errorf("failed to subscribe to NATS for session close: %w", err)
 	}
-	s.subscriptions = append(s.subscriptions, subsription)
 
 	// add the send request subscription
-	subsription, err = s.server.NATS().Subscribe(fmt.Sprintf("session.%s.view.send", sessionKey), s.processNATSSendRequest)
-	if err != nil {
+	subject = fmt.Sprintf("session.%s.view.send", sessionKey)
+	if err := s.addNATSSubscription(subject, s.processNATSSendRequest); err != nil {
 		return fmt.Errorf("failed to subscribe to NATS for session send: %w", err)
 	}
-	s.subscriptions = append(s.subscriptions, subsription)
 
 	// add the account ID subscription
-	subsription, err = s.server.NATS().Subscribe(fmt.Sprintf("session.%s.view.account.id", sessionKey), s.processNATSAccountID)
-	if err != nil {
+	subject = fmt.Sprintf("session.%s.view.account.id", sessionKey)
+	if err := s.addNATSSubscription(subject, s.processNATSAccountID); err != nil {
 		return fmt.Errorf("failed to subscribe to NATS for account ID: %w", err)
 	}
-	s.subscriptions = append(s.subscriptions, subsription)
 
+	return nil
+}
+
+func (s *sessionContext) addNATSSubscription(subject string, handler nats.MsgHandler) error {
+	subscription, err := s.server.NATS().Subscribe(subject, handler)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to NATS subject %s: %w", subject, err)
+	}
+
+	s.subscriptions = append(s.subscriptions, subscription)
 	return nil
 }
 

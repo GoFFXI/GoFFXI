@@ -16,7 +16,17 @@ type CharacterStats struct {
 	MP          uint16 `bun:"type:smallint unsigned,notnull,default:50"`
 	MainJob     uint8  `bun:"type:tinyint unsigned,notnull,default:0"`
 	SubJob      uint8  `bun:"type:tinyint unsigned,notnull,default:0"`
+	// LastDeath   uint32 `bun:"type:int unsigned,notnull,default:0"`
 }
+
+// func (c *CharacterStats) GetSecondsSinceLastDeath() uint32 {
+// 	if c.LastDeath == 0 {
+// 		return 0
+// 	}
+
+// 	currentTime := uint32(time.Now().Unix())
+// 	return currentTime - c.LastDeath
+// }
 
 type CharacterStatsQueries interface {
 	GetCharacterStatsByID(ctx context.Context, characterID uint32) (CharacterStats, error)

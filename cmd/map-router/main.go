@@ -90,6 +90,10 @@ func main() {
 	wg.Add(1)
 	go mapRouterServer.ProcessConnections(ctx, &wg, mapRouterServer.HandleIncomingPacket)
 
+	// start sending packets to clients
+	wg.Add(1)
+	go mapRouterServer.DeliverPacketsToClients(ctx, &wg)
+
 	// wait for shutdown signal
 	if err = mapRouterServer.WaitForShutdown(cancelCtx, &wg); err != nil {
 		logger.Error("error during shutdown", "error", err)

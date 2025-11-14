@@ -137,6 +137,9 @@ type Config struct {
 
 	// SearchServerPort is the port of the search server to direct clients to
 	SearchServerPort uint32 `env:"SEARCH_SERVER_PORT" default:"54002"`
+
+	// FFXIResourcePath is the directory containing compress.dat/decompress.dat resources
+	FFXIResourcePath string `env:"FFXI_RES_PATH" default:"resources"`
 }
 
 func ParseConfigFromEnv() Config {

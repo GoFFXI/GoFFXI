@@ -1,13 +1,19 @@
 package server
 
-import mapPackets "github.com/GoFFXI/GoFFXI/internal/packets/map"
+import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
+)
 
 type EquipKind uint8
 
 const (
-	PacketTypeEquipList = 0x0050
-	PacketSizeEquipList = 0x0008
+	EquipListPacketType = 0x0050
+	EquipListPacketSize = 0x0008
+)
 
+const (
 	EquipKindMain EquipKind = iota
 	EquipKindSub
 	EquipKindRanged
@@ -29,8 +35,6 @@ const (
 
 // https://github.com/atom0s/XiPackets/tree/main/world/server/0x0050
 type EquipListPacket struct {
-	Header mapPackets.PacketHeader
-
 	// The index of the item within the container.
 	PropertyItemIndex uint8
 
@@ -44,4 +48,23 @@ type EquipListPacket struct {
 
 	// Padding; unused.
 	Padding07 uint8
+}
+
+func (p *EquipListPacket) Type() uint16 {
+	return EquipListPacketType
+}
+
+func (p *EquipListPacket) Size() uint16 {
+	return EquipListPacketSize
+}
+
+func (p *EquipListPacket) Serialize() ([]byte, error) {
+	buf := new(bytes.Buffer)
+
+	// Write all fields in order
+	if err := binary.Write(buf, binary.LittleEndian, p); err != nil {
+		return nil, fmt.Errorf("failed to write packet: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }

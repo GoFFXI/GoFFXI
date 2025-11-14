@@ -14,6 +14,8 @@ import (
 
 	"github.com/GoFFXI/GoFFXI/internal/config"
 	"github.com/GoFFXI/GoFFXI/internal/database"
+	mapPackets "github.com/GoFFXI/GoFFXI/internal/packets/map"
+	serverPackets "github.com/GoFFXI/GoFFXI/internal/packets/map/server"
 )
 
 type InstanceWorker struct {
@@ -110,4 +112,25 @@ func (s *InstanceWorker) WaitForShutdown(cancelCtx context.CancelFunc, wg *sync.
 		s.Logger().Warn("shutdown timeout reached, forcing exit")
 		return fmt.Errorf("shutdown timeout reached")
 	}
+}
+
+func (s *InstanceWorker) sendPacket(clientAddr string, packet serverPackets.ServerPacket) error {
+	packetData, err := packet.Serialize()
+	if err != nil {
+		return fmt.Errorf("failed to serialize packet: %w", err)
+	}
+
+	s.Logger().Info("sending packet", "clientAddr", clientAddr, "packetType", packet.Type(), "packetSize", len(packetData), "expectedPacketSize", packet.Size())
+
+	routedPacket := mapPackets.RoutedPacket{
+		ClientAddr: clientAddr,
+		Packet: mapPackets.BasicPacket{
+			Type: packet.Type(),
+			Size: packet.Size(),
+			Data: packetData,
+		},
+	}
+
+	subject := fmt.Sprintf("map.router.%s.send", clientAddr)
+	return s.NATS().Publish(subject, routedPacket.ToJSON())
 }

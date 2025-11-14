@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"golang.org/x/crypto/blowfish" //nolint:staticcheck // Using Blowfish for FFXI compatibility
+	"golang.org/x/crypto/blowfish"
 )
 
 type BlowfishStatus int
@@ -33,6 +33,11 @@ func NewBlowfish(sessionKey string) (*Blowfish, error) {
 	// Initialize the key array
 	// The session key from DB is varchar(16), but we need to handle it properly
 	if err := bf.SetKeyFromString(sessionKey); err != nil {
+		return nil, err
+	}
+
+	// Initialize the Blowfish cipher with the key
+	if err := bf.initBlowfish(); err != nil {
 		return nil, err
 	}
 
@@ -97,6 +102,16 @@ func (bf *Blowfish) GetKeyAsString() string {
 	}
 
 	return string(keyBytes[:length])
+}
+
+// GetKeyBytes returns a raw copy of the 20-byte key
+func (bf *Blowfish) GetKeyBytes() []byte {
+	keyBytes := make([]byte, 20)
+	for i, val := range bf.key {
+		binary.LittleEndian.PutUint32(keyBytes[i*4:], val)
+	}
+
+	return keyBytes
 }
 
 // initBlowfish initializes the Blowfish cipher (matches C++ initBlowfish)

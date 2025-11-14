@@ -41,6 +41,8 @@ WORKDIR /app
 
 # Copy binary from builder
 COPY --from=builder /build/map-router /app/map-router
+# Copy resource files
+COPY --from=builder /build/resources /app/resources
 
 # Change ownership
 RUN chown -R goffxi:goffxi /app

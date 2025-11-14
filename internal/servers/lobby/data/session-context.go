@@ -32,33 +32,39 @@ func (s *sessionContext) SetupSubscriptions(sessionKey string) error {
 	s.sessionKey = sessionKey
 
 	// add the close request subscription
-	subsription, err := s.server.NATS().Subscribe(fmt.Sprintf("session.%s.data.close", sessionKey), s.processNATSCloseRequest)
-	if err != nil {
+	subject := fmt.Sprintf("session.%s.data.close", sessionKey)
+	if err := s.addNATSSubscription(subject, s.processNATSCloseRequest); err != nil {
 		return fmt.Errorf("failed to subscribe to NATS for session close: %w", err)
 	}
-	s.subscriptions = append(s.subscriptions, subsription)
 
 	// add the send request subscription
-	subsription, err = s.server.NATS().Subscribe(fmt.Sprintf("session.%s.data.send", sessionKey), s.processNATSSendRequest)
-	if err != nil {
+	subject = fmt.Sprintf("session.%s.data.send", sessionKey)
+	if err := s.addNATSSubscription(subject, s.processNATSSendRequest); err != nil {
 		return fmt.Errorf("failed to subscribe to NATS for session send: %w", err)
 	}
-	s.subscriptions = append(s.subscriptions, subsription)
 
 	// add the fresh character login subscription
-	subsription, err = s.server.NATS().Subscribe(fmt.Sprintf("session.%s.data.character.freshlogin", sessionKey), s.processNATSFreshCharacterLogin)
-	if err != nil {
+	subject = fmt.Sprintf("session.%s.data.character.freshlogin", sessionKey)
+	if err := s.addNATSSubscription(subject, s.processNATSFreshCharacterLogin); err != nil {
 		return fmt.Errorf("failed to subscribe to NATS for fresh character login: %w", err)
 	}
-	s.subscriptions = append(s.subscriptions, subsription)
 
 	// add the selected character ID subscription
-	subsription, err = s.server.NATS().Subscribe(fmt.Sprintf("session.%s.data.character.selectID", sessionKey), s.processNATSSelectedCharacterID)
-	if err != nil {
+	subject = fmt.Sprintf("session.%s.data.character.selectID", sessionKey)
+	if err := s.addNATSSubscription(subject, s.processNATSSelectedCharacterID); err != nil {
 		return fmt.Errorf("failed to subscribe to NATS for selected character ID: %w", err)
 	}
-	s.subscriptions = append(s.subscriptions, subsription)
 
+	return nil
+}
+
+func (s *sessionContext) addNATSSubscription(subject string, handler nats.MsgHandler) error {
+	subscription, err := s.server.NATS().Subscribe(subject, handler)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to NATS subject %s: %w", subject, err)
+	}
+
+	s.subscriptions = append(s.subscriptions, subscription)
 	return nil
 }
 
