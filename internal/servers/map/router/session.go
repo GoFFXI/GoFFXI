@@ -8,6 +8,7 @@ import (
 
 	"github.com/GoFFXI/GoFFXI/internal/database"
 	mapPackets "github.com/GoFFXI/GoFFXI/internal/packets/map"
+	"github.com/GoFFXI/GoFFXI/internal/tools/blowfish"
 	"github.com/nats-io/nats.go"
 )
 
@@ -19,29 +20,33 @@ type Session struct {
 	lastClientPacketID uint16
 	lastServerPacketID uint16
 
-	sessionKey       string
-	currentBlowfish  *Blowfish
-	previousBlowfish *Blowfish
+	sessionKey       [blowfish.KeySize]byte
+	currentBlowfish  *blowfish.Blowfish
+	previousBlowfish *blowfish.Blowfish
 
 	server        *MapRouterServer
 	subscriptions []*nats.Subscription
-
-	lastServerPacket     []byte
-	lastServerPacketSize int
 }
 
-func NewSession(clientAddr *net.UDPAddr, sessionKey string, server *MapRouterServer) (*Session, error) {
-	blowfish, err := NewBlowfish(sessionKey)
+func NewSession(clientAddr *net.UDPAddr, sessionKey []byte, server *MapRouterServer) (*Session, error) {
+	if len(sessionKey) != blowfish.KeySize {
+		return nil, fmt.Errorf("session key must be %d bytes, got %d", blowfish.KeySize, len(sessionKey))
+	}
+
+	bFish, err := blowfish.NewFromKeyBytes(sessionKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create blowfish for session: %w", err)
 	}
+
+	var keyCopy [blowfish.KeySize]byte
+	copy(keyCopy[:], sessionKey)
 
 	session := &Session{
 		clientAddr:      clientAddr,
 		character:       nil,
 		lastUpdate:      time.Now(),
-		sessionKey:      sessionKey,
-		currentBlowfish: blowfish,
+		sessionKey:      keyCopy,
+		currentBlowfish: bFish,
 		server:          server,
 		subscriptions:   []*nats.Subscription{},
 	}
@@ -93,9 +98,9 @@ func (s *Session) IncrementBlowfish() error {
 	s.previousBlowfish = s.currentBlowfish
 
 	// Create new Blowfish with incremented key
-	newBF := &Blowfish{
-		key:    s.currentBlowfish.key,
-		status: BlowfishPendingZone,
+	newBF := &blowfish.Blowfish{
+		Key:    s.currentBlowfish.Key,
+		Status: blowfish.BlowfishPendingZone,
 	}
 
 	// Increment the key

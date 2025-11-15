@@ -6,11 +6,11 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/GoFFXI/GoFFXI/internal/constants"
 	"github.com/GoFFXI/GoFFXI/internal/packets/lobby"
-	"github.com/GoFFXI/GoFFXI/internal/tools"
 )
 
 const (
@@ -179,9 +179,9 @@ func (s *DataServer) handleRequestSelectCharacter(sessionCtx *sessionContext, da
 	response.FFXIID = character.ID
 	response.FFXIDWorld = character.ID & 0xFFFF
 	response.ServerID = (character.ID >> 16) & 0xFF
-	response.MapServerIP = tools.StringToIP(s.Config().MapServerIP)
+	response.MapServerIP = stringToIP(s.Config().MapServerIP)
 	response.MapServerPort = s.Config().MapServerPort
-	response.SearchServerIP = tools.StringToIP(s.Config().SearchServerIP)
+	response.SearchServerIP = stringToIP(s.Config().SearchServerIP)
 	response.SearchServerPort = s.Config().SearchServerPort
 
 	// copy character name into response
@@ -226,4 +226,18 @@ func (s *DataServer) handleRequestSelectCharacter(sessionCtx *sessionContext, da
 	logger.Info("account session updated with blowfish key", "accountID", character.AccountID, "characterID", character.ID, "clientIP", clientIP, "sessionKeyHex", hex.EncodeToString(magicKey[:]))
 
 	return false
+}
+
+func stringToIP(ipStr string) uint32 {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return 0
+	}
+
+	ip = ip.To4()
+	if ip == nil {
+		return 0
+	}
+
+	return binary.BigEndian.Uint32(ip)
 }

@@ -1,4 +1,4 @@
-package ffxizlib
+package zlib
 
 import (
 	"encoding/binary"
@@ -23,7 +23,7 @@ const (
 	DecompressFileName = "decompress.dat"
 )
 
-type Codec struct {
+type FFXICodec struct {
 	resourcePath string
 
 	initOnce sync.Once
@@ -36,14 +36,14 @@ type Codec struct {
 
 // NewCodec creates a codec instance that loads compress.dat and decompress.dat
 // from the given resourcePath directory.
-func NewCodec(resourcePath string) *Codec {
-	return &Codec{
+func NewCodec(resourcePath string) *FFXICodec {
+	return &FFXICodec{
 		resourcePath: resourcePath,
 	}
 }
 
 // EnsureInitialized loads the compression tables if they haven't been loaded yet.
-func (c *Codec) EnsureInitialized() error {
+func (c *FFXICodec) EnsureInitialized() error {
 	c.initOnce.Do(func() {
 		c.initErr = c.loadTables()
 	})
@@ -51,14 +51,8 @@ func (c *Codec) EnsureInitialized() error {
 	return c.initErr
 }
 
-// CompressedSize returns the byte length required to store the provided
-// number of bits. Matches the upstream zlib_compressed_size helper.
-func CompressedSize(sz uint32) uint32 {
-	return (sz + 7) / 8
-}
-
 // Compress writes the custom FFXI compressed data into dst and returns the bit count.
-func (c *Codec) Compress(src []byte, dst []byte) (uint32, error) {
+func (c *FFXICodec) Compress(src []byte, dst []byte) (uint32, error) {
 	if c == nil {
 		return 0, errors.New("codec is not initialized")
 	}
@@ -82,6 +76,11 @@ func (c *Codec) Compress(src []byte, dst []byte) (uint32, error) {
 
 		elem := c.encTable[index+0x180]
 		if elem+read >= maxBits {
+			if len(src)+1 >= len(dst) {
+				fillOverflowOutput(dst, len(src))
+				return uint32(len(src)), nil
+			}
+
 			return 0, fmt.Errorf("insufficient space in destination buffer (needed %d bits, have %d)", elem+read, maxBits)
 		}
 
@@ -101,7 +100,7 @@ func (c *Codec) Compress(src []byte, dst []byte) (uint32, error) {
 }
 
 // Decompress expands the provided compressed payload into dst and returns the number of bytes written.
-func (c *Codec) Decompress(in []byte, bitCount uint32, dst []byte) (int, error) {
+func (c *FFXICodec) Decompress(in []byte, bitCount uint32, dst []byte) (int, error) {
 	if c == nil {
 		return 0, errors.New("codec is not initialized")
 	}
@@ -174,30 +173,47 @@ func (c *Codec) Decompress(in []byte, bitCount uint32, dst []byte) (int, error) 
 	return written, nil
 }
 
-func compressSub(bitPattern []byte, read, elem uint32, out []byte) error {
-	for i := 0; i < int(elem); i++ {
-		shift := (read + uint32(i)) & 7
-		index := (read + uint32(i)) / 8
-		if int(index) >= len(out) {
-			return errors.New("compression output exceeded buffer")
-		}
-
-		invMask := ^(uint8(1) << shift)
-		bit := (bitPattern[i/8] >> (i & 7)) & 1
-		out[index] = (invMask & out[index]) + (bit << shift)
+func fillOverflowOutput(dst []byte, inputLen int) {
+	if len(dst) == 0 {
+		return
 	}
-	return nil
+
+	zeroLen := len(dst)/4 + (inputLen & 3)
+	if zeroLen > len(dst) {
+		zeroLen = len(dst)
+	}
+	for i := 0; i < zeroLen; i++ {
+		dst[i] = 0
+	}
+
+	if len(dst) <= 1 {
+		return
+	}
+
+	secondLen := inputLen / 4
+	if secondLen > len(dst)-1 {
+		secondLen = len(dst) - 1
+	}
+	for i := 0; i < secondLen; i++ {
+		dst[1+i] = byte(inputLen)
+	}
+
+	offset := 1 + inputLen/4
+	if offset > len(dst) {
+		offset = len(dst)
+	}
+
+	thirdLen := inputLen & 3
+	if offset+thirdLen > len(dst) {
+		thirdLen = len(dst) - offset
+	}
+
+	for i := 0; i < thirdLen; i++ {
+		dst[offset+i] = byte((inputLen + 1) * 8)
+	}
 }
 
-func jumpEntryAt(entry *jumpEntry, offset int) *jumpEntry {
-	if entry == nil {
-		return nil
-	}
-	ptr := unsafe.Add(unsafe.Pointer(entry), uintptr(offset)*unsafe.Sizeof(jumpEntry{}))
-	return (*jumpEntry)(ptr)
-}
-
-func (c *Codec) loadTables() error {
+func (c *FFXICodec) loadTables() error {
 	compressData, err := c.readResource(CompressFileName)
 	if err != nil {
 		return err
@@ -225,7 +241,7 @@ func (c *Codec) loadTables() error {
 	return nil
 }
 
-func (c *Codec) readResource(name string) ([]byte, error) {
+func (c *FFXICodec) readResource(name string) ([]byte, error) {
 	base := c.resourcePath
 	if base == "" {
 		base = "."
@@ -240,20 +256,7 @@ func (c *Codec) readResource(name string) ([]byte, error) {
 	return data, nil
 }
 
-func bytesToUint32(data []byte) ([]uint32, error) {
-	if len(data)%4 != 0 {
-		return nil, fmt.Errorf("malformed resource length %d", len(data))
-	}
-
-	vals := make([]uint32, len(data)/4)
-	for i := 0; i < len(vals); i++ {
-		vals[i] = binary.LittleEndian.Uint32(data[i*4:])
-	}
-
-	return vals, nil
-}
-
-func (c *Codec) populateJumpTable(dec []uint32) error {
+func (c *FFXICodec) populateJumpTable(dec []uint32) error {
 	if len(dec) == 0 {
 		return errors.New("empty decompression table")
 	}
