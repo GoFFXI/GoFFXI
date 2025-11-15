@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/GoFFXI/GoFFXI/internal/database"
 	"github.com/GoFFXI/GoFFXI/internal/packets/lobby"
 	"github.com/GoFFXI/GoFFXI/internal/servers/base/tcp"
 )
@@ -66,10 +67,15 @@ func (s ViewServer) parseIncomingRequest(sessionCtx *sessionContext, request []b
 		return true
 	}
 
+	// convert the identifier to a byte array for DB lookup
+	sessionKeyBytes := make([]byte, database.AccountSessionKeyLength)
+	copy(sessionKeyBytes, header.Identifier[:])
+
 	// attempt to lookup the account session
 	sessionKey := string(header.Identifier[:])
 	sessionCtx.logger.Info("looking up session", "sessionKey", sessionKey, "opCode", header.Command)
-	accountSession, err := s.DB().GetAccountSessionBySessionKey(sessionCtx.ctx, sessionKey)
+
+	accountSession, err := s.DB().GetAccountSessionBySessionKey(sessionCtx.ctx, sessionKeyBytes)
 	if err != nil {
 		// this shouldn't happen normally, log and close the connection
 		sessionCtx.logger.Error("failed to lookup account session", "session_key", header.Identifier, "error", err)
@@ -78,7 +84,7 @@ func (s ViewServer) parseIncomingRequest(sessionCtx *sessionContext, request []b
 
 	// make sure this session context has subscriptions set up
 	// this should only be done once per session
-	if err = sessionCtx.SetupSubscriptions(accountSession.SessionKey); err != nil {
+	if err = sessionCtx.SetupSubscriptions(sessionKey); err != nil {
 		sessionCtx.logger.Error("failed to setup subscriptions", "error", err)
 		return true
 	}

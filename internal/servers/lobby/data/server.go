@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/GoFFXI/GoFFXI/internal/database"
 	"github.com/GoFFXI/GoFFXI/internal/packets/lobby"
 	"github.com/GoFFXI/GoFFXI/internal/servers/base/tcp"
 )
@@ -70,10 +71,15 @@ func (s *DataServer) parseIncomingRequest(sessionCtx *sessionContext, request []
 		return true
 	}
 
+	// convert the identifier to a byte array for DB lookup
+	sessionKeyBytes := make([]byte, database.AccountSessionKeyLength)
+	copy(sessionKeyBytes, header.Identifier[:])
+
 	// attempt to lookup the account session
 	sessionKey := string(header.Identifier[:])
 	sessionCtx.logger.Info("looking up session", "sessionKey", sessionKey, "opCode", header.Command)
-	accountSession, err := s.DB().GetAccountSessionBySessionKey(sessionCtx.ctx, sessionKey)
+
+	accountSession, err := s.DB().GetAccountSessionBySessionKey(sessionCtx.ctx, sessionKeyBytes)
 	if err != nil {
 		// don't treat missing session as an error, just log and continue
 		// the 2nd part of selecting a character won't pass in a valid session key for whatever reason

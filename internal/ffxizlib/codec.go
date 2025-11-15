@@ -114,13 +114,8 @@ func (c *Codec) Decompress(in []byte, bitCount uint32, dst []byte) (int, error) 
 		return 0, errors.New("empty compressed input")
 	}
 
-	if bitCount < 8 {
-		return 0, errors.New("invalid compressed size (< 8 bits)")
-	}
-
-	requiredBytes := CompressedSize(bitCount)
-	if uint32(len(in)) < requiredBytes {
-		return 0, fmt.Errorf("compressed input shorter than expected (%d < %d)", len(in), requiredBytes)
+	if bitCount == 0 {
+		return 0, errors.New("invalid compressed size (0 bits)")
 	}
 
 	if in[0] != 1 {
@@ -131,17 +126,22 @@ func (c *Codec) Decompress(in []byte, bitCount uint32, dst []byte) (int, error) 
 		return 0, errors.New("jump table not initialized")
 	}
 
-	if requiredBytes <= 1 {
-		return 0, errors.New("compressed payload missing")
+	written := 0
+	dataBits := bitCount
+	data := in[1:]
+	if uint32(len(data))*8 < dataBits {
+		return 0, fmt.Errorf("compressed input shorter than expected (%d bits needed, %d bytes provided)", dataBits, len(data))
 	}
 
-	written := 0
-	dataBits := bitCount - 8
-	data := in[1:requiredBytes]
 	jmp := c.jumpRoot
 
 	for i := uint32(0); i < dataBits && written < len(dst); i++ {
-		bit := int((data[i/8] >> (i & 7)) & 1)
+		byteIndex := i / 8
+		if int(byteIndex) >= len(data) {
+			return 0, fmt.Errorf("compressed input overflow at bit %d", i)
+		}
+
+		bit := int((data[byteIndex] >> (i & 7)) & 1)
 		child := jumpEntryAt(jmp, bit)
 		if child == nil || child.ptr == nil {
 			return 0, errors.New("invalid jump pointer")

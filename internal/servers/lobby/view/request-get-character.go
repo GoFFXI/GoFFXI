@@ -49,7 +49,7 @@ func (s *ViewServer) handleRequestGetCharacter(sessionCtx *sessionContext, accou
 	// this is a bit of a weird one - the request should actually trigger the data server to send a success response (0x01)
 	// no player data is actually sent here, the data server handles that separately
 	logger.Info("instructing data server to generate character data")
-	_ = s.NATS().Publish(fmt.Sprintf("session.%s.data.send", accountSession.SessionKey), []byte{0x01})
+	_ = s.NATS().Publish(fmt.Sprintf("session.%s.data.send", sessionCtx.sessionKey), []byte{0x01})
 
 	return false
 }

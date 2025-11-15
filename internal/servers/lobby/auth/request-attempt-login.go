@@ -140,11 +140,14 @@ func (s *AuthServer) handleRequestAttemptLogin(ctx context.Context, conn net.Con
 	}
 
 	// create the account session
+	sessionKeyBytes := make([]byte, database.AccountSessionKeyLength)
+	copy(sessionKeyBytes, sessionKey[:])
+
 	accountSession := &database.AccountSession{
 		AccountID:   account.ID,
 		CharacterID: 0, // No character selected yet
-		SessionKey:  string(sessionKey[:]),
 		ClientIP:    clientAddr.String(),
+		SessionKey:  sessionKeyBytes,
 	}
 
 	_, err = s.DB().CreateAccountSession(ctx, accountSession)

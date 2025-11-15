@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/md5"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -119,9 +120,9 @@ func (s *DataServer) handleRequestSelectCharacter(sessionCtx *sessionContext, da
 	logger.Info("handling request")
 
 	// extract the magic blowfish key from the request
-	var magicKey [20]uint8
+	var magicKey [20]byte
 	copy(magicKey[:], data[1:21])
-	logger.Info("extracted magic key", "magicKey", magicKey)
+	logger.Info("extracted magic key", "magicKeyHex", hex.EncodeToString(magicKey[:]))
 
 	// make sure there is a session account ID
 	if sessionCtx.accountID == 0 {
@@ -214,13 +215,15 @@ func (s *DataServer) handleRequestSelectCharacter(sessionCtx *sessionContext, da
 
 	// update the account session with the client ip and selected character id
 	clientIP := strings.Split(sessionCtx.conn.RemoteAddr().String(), ":")[0]
-	err = s.DB().UpdateAccountSession(sessionCtx.ctx, character.AccountID, character.ID, clientIP)
+	err = s.DB().UpdateAccountSession(sessionCtx.ctx, character.AccountID, character.ID, clientIP, magicKey[:])
 	if err != nil {
 		logger.Error("failed to update account session with client ip", "error", err)
 		s.sendErrorResponse(sessionCtx)
 
 		return false
 	}
+
+	logger.Info("account session updated with blowfish key", "accountID", character.AccountID, "characterID", character.ID, "clientIP", clientIP, "sessionKeyHex", hex.EncodeToString(magicKey[:]))
 
 	return false
 }

@@ -27,13 +27,9 @@ func (s *MapRouterServer) decryptPacket(ctx context.Context, length int, data []
 	// the only unencrypted packet we expect is the login request packet
 	// this is the only packet whose checksum we can validate at this stage
 	loginPacket, err := clientPackets.ParseLoginPacket(data[:length])
-	if err != nil {
-		// if the parse failed due to invalid checksum, it's ok - assume the packet is encrypted
-		// otherwise, we need to log the error
-		if err.Error() != "invalid packet checksum" {
-			s.Logger().Warn("failed to parse login packet, assuming encrypted", "error", err)
-			return -1, []byte{}
-		}
+	if err != nil && err.Error() != "invalid packet checksum" {
+		s.Logger().Warn("failed to parse login packet, assuming encrypted", "error", err)
+		return -1, []byte{}
 	}
 
 	// check if the login packet was successfully parsed
@@ -67,10 +63,7 @@ func (s *MapRouterServer) decryptPacket(ctx context.Context, length int, data []
 			//
 			// If we don't do this, all further packets may be ignored by the client and will result
 			// in a disconnection from the server.
-			if !sessionExists {
-				session.lastServerPacketID = 0
-			}
-
+			session.lastServerPacketID = 0
 			session.lastClientPacketID = loginPacket.Header.Sync
 
 			// todo: clear any pending packets in the session buffer
@@ -78,10 +71,18 @@ func (s *MapRouterServer) decryptPacket(ctx context.Context, length int, data []
 				s.packetsToSend = make(map[string][]*mapPackets.RoutedPacket)
 			}
 			s.packetsToSend[clientAddr.String()] = nil
+		} else {
+			// reset counters for fresh login attempts
+			session.lastClientPacketID = 0
+			session.lastServerPacketID = 0
+
+			if s.packetsToSend != nil {
+				s.packetsToSend[clientAddr.String()] = nil
+			}
 		}
 
-		// at this point, we have a valid login packet and session
-		return 0, data
+		// at this point, we have a valid login packet and session; forward it unmodified for parsing
+		return 0, data[:length]
 	}
 
 	// if we reach here, the packet is not a login packet so we must have an existing session to proceed
@@ -90,7 +91,8 @@ func (s *MapRouterServer) decryptPacket(ctx context.Context, length int, data []
 		return -1, []byte{}
 	}
 
-	packet := data[:length]
+	packet := make([]byte, length)
+	copy(packet, data[:length])
 
 	decryptCount := int32(0)
 	needsBackup := session.currentBlowfish != nil && session.currentBlowfish.status == BlowfishPendingZone && session.previousBlowfish != nil
@@ -115,11 +117,28 @@ func (s *MapRouterServer) decryptPacket(ctx context.Context, length int, data []
 		session.currentBlowfish.status = BlowfishAccepted
 	}
 
+	sizeOffset := len(packet) - mapPackets.MD5ChecksumSize - 4
+	if sizeOffset < mapPackets.HeaderSize {
+		s.Logger().Warn("compressed packet too small after header trim", "client", clientAddr.String(), "packetLength", len(packet))
+		return -1, []byte{}
+	}
+
+	bitCount := binary.LittleEndian.Uint32(packet[sizeOffset : sizeOffset+4])
+	compressedBytes := len(packet) - mapPackets.HeaderSize - mapPackets.MD5ChecksumSize
+
 	decompressed, err := s.decompressPacket(packet)
 	if err != nil {
 		s.Logger().Warn("failed to decompress packet", "client", clientAddr.String(), "error", err)
 		return -1, []byte{}
 	}
+
+	decompressedBytes := len(decompressed) - mapPackets.HeaderSize
+
+	s.Logger().Debug("decompression info",
+		"client", clientAddr.String(),
+		"bitCount", bitCount,
+		"compressedBytes", compressedBytes,
+		"decompressedBytes", decompressedBytes)
 
 	return decryptCount, decompressed
 }

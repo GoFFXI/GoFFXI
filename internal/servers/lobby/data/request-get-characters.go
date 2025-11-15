@@ -278,7 +278,7 @@ func (s DataServer) handleRequestGetCharacters(sessionCtx *sessionContext, accou
 	// make sure the session's account ID is correct
 	if request.AccountID != accountSession.AccountID {
 		logger.Warn("account ID mismatch", "expected", accountSession.AccountID, "got", request.AccountID)
-		_ = s.NATS().Publish(fmt.Sprintf("session.%s.view.close", accountSession.SessionKey), nil)
+		_ = s.NATS().Publish(fmt.Sprintf("session.%s.view.close", sessionCtx.sessionKey), nil)
 		return true
 	}
 
@@ -286,7 +286,7 @@ func (s DataServer) handleRequestGetCharacters(sessionCtx *sessionContext, accou
 	// we are going to send over the account ID via NATS so it can associate future requests via the session key
 	accountIDBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(accountIDBytes, request.AccountID)
-	_ = s.NATS().Publish(fmt.Sprintf("session.%s.view.account.id", accountSession.SessionKey), accountIDBytes)
+	_ = s.NATS().Publish(fmt.Sprintf("session.%s.view.account.id", sessionCtx.sessionKey), accountIDBytes)
 
 	// also, store the account ID in the session context for future use
 	sessionCtx.accountID = request.AccountID
@@ -360,7 +360,7 @@ func (s DataServer) handleRequestGetCharacters(sessionCtx *sessionContext, accou
 	}
 
 	logger.Info("instructing view server to send character data")
-	_ = s.NATS().Publish(fmt.Sprintf("session.%s.view.send", accountSession.SessionKey), viewPacket)
+	_ = s.NATS().Publish(fmt.Sprintf("session.%s.view.send", sessionCtx.sessionKey), viewPacket)
 	return false
 }
 

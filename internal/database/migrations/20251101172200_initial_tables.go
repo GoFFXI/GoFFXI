@@ -193,7 +193,7 @@ type AccountSession20251101172200 struct {
 
 	AccountID   uint32 `bun:"type:int unsigned,unique"`
 	CharacterID uint32 `bun:"type:int unsigned,notnull,pk"`
-	SessionKey  string `bun:"type:varchar(16),notnull,unique"`
+	SessionKey  []byte `bun:"type:binary(20),notnull,unique"`
 	ClientIP    string `bun:"type:varchar(15),notnull"`
 
 	CreatedAt time.Time `bun:"type:timestamp,notnull,default:current_timestamp"`

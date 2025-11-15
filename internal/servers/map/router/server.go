@@ -1,7 +1,9 @@
 package router
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"sync"
@@ -59,6 +61,10 @@ func (s *MapRouterServer) HandleIncomingPacket(ctx context.Context, length int, 
 	// if the packet was successfully decrypted (or already unencrypted), it's time to parse it
 	switch decryptAttempts {
 	case 0, 1:
+		if decryptedPacket == nil {
+			// nothing to parse (e.g., login handshake)
+			return
+		}
 		if len(decryptedPacket) <= mapPackets.HeaderSize {
 			s.Logger().Warn("decrypted packet too small", "size", len(decryptedPacket))
 			return
@@ -88,16 +94,17 @@ func (s *MapRouterServer) createSession(ctx context.Context, characterID uint32,
 		return nil, fmt.Errorf("client IP mismatch for character ID %d: expected %s, got %s", characterID, accountSession.ClientIP, clientAddr.IP.String())
 	}
 
-	session, err := NewSession(clientAddr, accountSession.SessionKey, s)
+	session, err := NewSession(clientAddr, string(accountSession.SessionKey), s)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
 	// In session creation
 	s.Logger().Info("BLOWFISH DEBUG",
-		"sessionKeyFromDB", accountSession.SessionKey,
-		"blowfishKeyString", session.currentBlowfish.GetKeyAsString(),
-		"match", accountSession.SessionKey == session.currentBlowfish.GetKeyAsString())
+		"sessionKeyHex", hex.EncodeToString(accountSession.SessionKey),
+		"blowfishKeyHex", hex.EncodeToString(session.currentBlowfish.GetKeyBytes()),
+		"md5HashHex", session.currentBlowfish.HashHex(),
+		"match", bytes.Equal(accountSession.SessionKey, session.currentBlowfish.GetKeyBytes()))
 
 	s.sessions[clientAddr.String()] = session
 	return session, nil

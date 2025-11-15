@@ -17,6 +17,7 @@ type sessionContext struct {
 	server        *ViewServer
 	logger        *slog.Logger
 
+	sessionKey             string
 	accountID              uint32
 	requestedCharacterName string
 	selectedCharacterID    uint32
@@ -26,6 +27,8 @@ func (s *sessionContext) SetupSubscriptions(sessionKey string) error {
 	if len(s.subscriptions) > 0 {
 		return nil
 	}
+
+	s.sessionKey = sessionKey
 
 	// add the close request subscription
 	subject := fmt.Sprintf("session.%s.view.close", sessionKey)

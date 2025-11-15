@@ -3,6 +3,7 @@ package router
 import (
 	"crypto/md5"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 
 	"golang.org/x/crypto/blowfish"
@@ -112,6 +113,11 @@ func (bf *Blowfish) GetKeyBytes() []byte {
 	}
 
 	return keyBytes
+}
+
+// HashHex returns the current MD5 hash representation as hex.
+func (bf *Blowfish) HashHex() string {
+	return hex.EncodeToString(bf.hash[:])
 }
 
 // initBlowfish initializes the Blowfish cipher (matches C++ initBlowfish)

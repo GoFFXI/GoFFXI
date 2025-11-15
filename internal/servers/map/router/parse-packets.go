@@ -3,6 +3,7 @@ package router
 import (
 	"encoding/binary"
 	"fmt"
+	"strings"
 	"time"
 
 	mapPackets "github.com/GoFFXI/GoFFXI/internal/packets/map"
@@ -63,6 +64,12 @@ func (s *MapRouterServer) parsePackets(data []byte, session *Session) ([]mapPack
 			remainingBytes := packetDataEnd - ptr
 			s.Logger().Debug("packet would extend beyond buffer", "ptr", ptr, "size", packetSizeBytes, "end", packetDataEnd, "remaining", remainingBytes)
 
+			// if we're at the checksum tail (16 bytes), stop parsing gracefully
+			if remainingBytes == mapPackets.MD5ChecksumSize {
+				s.Logger().Debug("reached checksum tail, stopping parse")
+				break
+			}
+
 			// for login packets, the entire remaining buffer might be the packet
 			if remainingBytes >= 4 && packetType == clientPackets.PacketTypeLogin {
 				s.Logger().Debug("detected login packet, using remaining buffer", "remainingBytes", remainingBytes)
@@ -70,7 +77,8 @@ func (s *MapRouterServer) parsePackets(data []byte, session *Session) ([]mapPack
 			} else {
 				s.Logger().Warn("truncated packet detected, stopping parse",
 					"type", fmt.Sprintf("0x%03X", packetType),
-					"remaining", remainingBytes)
+					"remaining", remainingBytes,
+					"dataPreview", hexPreview(data[ptr:packetDataEnd], 64))
 				break
 			}
 		}
@@ -96,7 +104,7 @@ func (s *MapRouterServer) parsePackets(data []byte, session *Session) ([]mapPack
 		// create BasicPacket
 		packet := mapPackets.BasicPacket{
 			Type:     packetType,
-			Size:     uint16(sizeInChunks / 2), //nolint:gosec // size in chunks of 2 bytes
+			Size:     uint16(packetSizeBytes),
 			Sequence: packetSequence,
 			Data:     make([]byte, packetSizeBytes),
 		}
@@ -119,4 +127,28 @@ func (s *MapRouterServer) parsePackets(data []byte, session *Session) ([]mapPack
 
 	s.Logger().Info("finished parsing packets", "totalPackets", len(packets))
 	return packets, nil
+}
+
+func hexPreview(data []byte, maxBytes int) string {
+	if len(data) == 0 {
+		return ""
+	}
+
+	if maxBytes <= 0 || maxBytes > len(data) {
+		maxBytes = len(data)
+	}
+
+	var builder strings.Builder
+	for i := 0; i < maxBytes; i++ {
+		if i > 0 {
+			builder.WriteByte(' ')
+		}
+		fmt.Fprintf(&builder, "%02X", data[i])
+	}
+
+	if maxBytes < len(data) {
+		builder.WriteString(" ...")
+	}
+
+	return builder.String()
 }

@@ -110,7 +110,7 @@ func (s *ViewServer) handleRequestCreateCharacter(sessionCtx *sessionContext, ac
 	}
 
 	// the data server has a separate session but needs to know this is a first-time login for the character
-	_ = s.NATS().Publish(fmt.Sprintf("session.%s.data.character.freshlogin", accountSession.SessionKey), []byte{1})
+	_ = s.NATS().Publish(fmt.Sprintf("session.%s.data.character.freshlogin", sessionCtx.sessionKey), []byte{1})
 
 	response, err := NewResponseOK()
 	if err != nil {
