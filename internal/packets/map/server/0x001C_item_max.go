@@ -10,7 +10,8 @@ type ContainerKind uint8
 
 const (
 	ItemMaxPacketType = 0x001C
-	ItemMaxPacketSize = 0x0064
+	// Payload size only; the sub-packet header (4 bytes) is added by the router.
+	ItemMaxPacketSize = 0x0060
 )
 
 // Container indices for FFXI inventory system

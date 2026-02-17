@@ -23,6 +23,7 @@ type Session struct {
 	sessionKey       [blowfish.KeySize]byte
 	currentBlowfish  *blowfish.Blowfish
 	previousBlowfish *blowfish.Blowfish
+	lastClientHeader [mapPackets.HeaderSize]byte
 
 	server        *MapRouterServer
 	subscriptions []*nats.Subscription
@@ -82,15 +83,20 @@ func (s *Session) processNATSSendRequest(msg *nats.Msg) {
 
 	// queue the packet to be sent to the client
 	s.server.Logger().Info("queuing packet to send to client", "clientAddr", s.clientAddr.String(), "packetType", routedPacket.Packet.Type, "packetSize", routedPacket.Packet.Size)
+	s.server.packetsMu.Lock()
+	defer s.server.packetsMu.Unlock()
+
 	if s.server.packetsToSend == nil {
 		s.server.packetsToSend = make(map[string][]*mapPackets.RoutedPacket)
 	}
 
-	if s.server.packetsToSend[routedPacket.ClientAddr] == nil {
-		s.server.packetsToSend[routedPacket.ClientAddr] = []*mapPackets.RoutedPacket{}
-	}
+	queue := s.server.packetsToSend[routedPacket.ClientAddr]
+	packetCopy := routedPacket
+	s.server.packetsToSend[routedPacket.ClientAddr] = append(queue, &packetCopy)
 
-	s.server.packetsToSend[routedPacket.ClientAddr] = append(s.server.packetsToSend[routedPacket.ClientAddr], &routedPacket)
+	// periodic delivery goroutine will drain queued packets so that
+	// multiple responses generated within the same tick can be bundled
+	// together just like LandSandBoat's main loop.
 }
 
 func (s *Session) IncrementBlowfish() error {

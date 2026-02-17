@@ -110,12 +110,12 @@ func TestInitBlowfishHashAndHex(t *testing.T) {
 		t.Fatalf("Hash = %x, want %x", bf.Hash, expectedHash)
 	}
 
-	if bf.Cipher == nil {
-		t.Fatal("Cipher is nil after init")
-	}
-
 	if got := bf.HashHex(); got != hex.EncodeToString(expectedHash[:]) {
 		t.Fatalf("HashHex() = %q, want %q", got, hex.EncodeToString(expectedHash[:]))
+	}
+
+	if bf.P == ([pSize]uint32{}) {
+		t.Fatal("P array not initialized after initBlowfish")
 	}
 }
 
@@ -192,6 +192,28 @@ func TestNewFromKeyBytes(t *testing.T) {
 
 	if got := bf.GetKeyAsString(); got != string(key[:KeySize]) {
 		t.Fatalf("GetKeyAsString() = %q, want %q", got, string(key[:KeySize]))
+	}
+}
+
+func TestBlowfishVectorMatchesLandSandBoat(t *testing.T) {
+	bf := mustNewBlowfish(t, "ABCDEFGHIJKLMNOPQRST")
+
+	t.Logf("hash: % X", bf.Hash)
+	t.Logf("P0=%08X P1=%08X P2=%08X", bf.P[0], bf.P[1], bf.P[2])
+
+	plain := []byte{0x67, 0x45, 0x23, 0x01, 0xEF, 0xCD, 0xAB, 0x89}
+	buf := append([]byte(nil), plain...)
+	bf.EncryptECB(buf)
+
+	c1 := binary.LittleEndian.Uint32(buf[:4])
+	c2 := binary.LittleEndian.Uint32(buf[4:])
+	if c1 != 0x24A24638 || c2 != 0x77DF2F4A {
+		t.Fatalf("EncryptECB() = %08X %08X, want 24A24638 77DF2F4A", c1, c2)
+	}
+
+	bf.DecryptECB(buf)
+	if !bytes.Equal(buf, plain) {
+		t.Fatalf("DecryptECB() = %v, want %v", buf, plain)
 	}
 }
 

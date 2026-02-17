@@ -117,18 +117,16 @@ func (p *LoginPacket) validateChecksum(rawData []byte) bool {
 }
 
 func NewRequestLoginPacket(data []byte) (*LoginPacket, error) {
-	// strip the header
-	data = data[mapPackets.HeaderSize : mapPackets.HeaderSize+PacketSizeLogin]
-
-	// make sure the data length is correct
-	if len(data) != int(PacketSizeLogin) {
-		return nil, fmt.Errorf("invalid packet size")
+	headerLen := int(mapPackets.HeaderSize)
+	payloadLen := int(PacketSizeLogin)
+	if len(data) < headerLen+payloadLen {
+		return nil, fmt.Errorf("login packet truncated: expected %d bytes, got %d", headerLen+payloadLen, len(data))
 	}
 
-	// parse the packet
+	body := data[headerLen : headerLen+payloadLen]
+
 	var packet LoginPacket
-	err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &packet)
-	if err != nil {
+	if err := binary.Read(bytes.NewReader(body), binary.LittleEndian, &packet); err != nil {
 		return nil, fmt.Errorf("failed to parse login packet: %w", err)
 	}
 
@@ -136,29 +134,41 @@ func NewRequestLoginPacket(data []byte) (*LoginPacket, error) {
 }
 
 func ParseLoginPacket(data []byte) (*LoginPacket, error) {
-	// only process packets that have valid checksums
-	if !mapPackets.PerformPacketChecksum(data) {
-		return nil, fmt.Errorf("invalid packet checksum")
+	headerLen := int(mapPackets.HeaderSize)
+	payloadHeaderLen := 4
+	checksumLen := mapPackets.MD5ChecksumSize
+	if len(data) < headerLen+payloadHeaderLen+checksumLen {
+		return nil, fmt.Errorf("packet too small")
 	}
 
-	// extract the packet ID from the header
-	packetID := binary.LittleEndian.Uint16(data[mapPackets.HeaderSize:]) & 0x1FF
-
-	// only process login packets for now
+	innerHeader := binary.LittleEndian.Uint16(data[headerLen : headerLen+2])
+	packetID := innerHeader & 0x1FF
+	packetUnits := int(innerHeader >> 9)
 	if packetID != PacketTypeLogin {
 		return nil, fmt.Errorf("unexpected packet ID: %d", packetID)
 	}
 
-	// attempt to parse the login packet
-	loginPacket, err := NewRequestLoginPacket(data)
+	payloadLen := packetUnits * 4
+	if payloadLen != int(PacketSizeLogin) {
+		return nil, fmt.Errorf("unexpected login payload size: %d", payloadLen)
+	}
+
+	payloadEnd := headerLen + payloadLen
+	expectedLen := payloadEnd + checksumLen
+	if len(data) < expectedLen {
+		return nil, fmt.Errorf("login packet truncated: expected %d bytes, got %d", expectedLen, len(data))
+	}
+
+	if !mapPackets.PerformPacketChecksum(data[:expectedLen]) {
+		return nil, fmt.Errorf("invalid packet checksum")
+	}
+
+	loginPacket, err := NewRequestLoginPacket(data[:payloadEnd])
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse login packet: %w", err)
 	}
 
-	// we previously validated the overall packet checksum but the FFXI
-	// client will also send a checksum within the login packet itself; so
-	// let's validate that as well
-	if !loginPacket.validateChecksum(data[mapPackets.HeaderSize : mapPackets.HeaderSize+PacketSizeLogin]) {
+	if !loginPacket.validateChecksum(data[headerLen:payloadEnd]) {
 		return nil, fmt.Errorf("invalid login packet checksum")
 	}
 

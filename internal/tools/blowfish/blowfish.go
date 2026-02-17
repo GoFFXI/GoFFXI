@@ -4,9 +4,6 @@ import (
 	"crypto/md5"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
-
-	"golang.org/x/crypto/blowfish"
 )
 
 const (
@@ -23,44 +20,42 @@ const (
 	BlowfishPendingZone
 )
 
+const (
+	pSize  = 18
+	sSize  = 1024
+	rounds = 16
+)
+
 type Blowfish struct {
-	Key    [5]uint32        // The raw key (20 bytes as 5 uint32s)
-	Hash   [HashSize]byte   // MD5 hash of the key
-	Cipher *blowfish.Cipher // The actual Blowfish cipher
-	Status BlowfishStatus   // Current status
+	Key    [5]uint32
+	Hash   [HashSize]byte
+	P      [pSize]uint32
+	S      [sSize]uint32
+	Status BlowfishStatus
 }
 
-// NewBlowfish creates a new FFXI Blowfish instance from a session key string
 func NewBlowfish(sessionKey string) (*Blowfish, error) {
 	return NewFromKeyBytes([]byte(sessionKey))
 }
 
-// NewFromKeyBytes creates a new Blowfish instance from a raw 20-byte key.
 func NewFromKeyBytes(sessionKey []byte) (*Blowfish, error) {
 	bf := &Blowfish{Status: BlowfishWaiting}
-
 	bf.SetKeyBytes(sessionKey)
-
-	// Initialize the Blowfish cipher with the key
 	if err := bf.initBlowfish(); err != nil {
 		return nil, err
 	}
-
 	return bf, nil
 }
 
-// SetKeyFromString sets the key from a session key string
 func (bf *Blowfish) SetKeyFromString(sessionKey string) error {
 	bf.SetKeyBytes([]byte(sessionKey))
 	return nil
 }
 
-// SetKeyBytes sets the raw key data directly (matches memcpy semantics in LSB).
 func (bf *Blowfish) SetKeyBytes(key []byte) {
 	for i := range bf.Key {
 		bf.Key[i] = 0
 	}
-
 	if len(key) == 0 {
 		return
 	}
@@ -74,9 +69,7 @@ func (bf *Blowfish) SetKeyBytes(key []byte) {
 	}
 }
 
-// GetKeyAsString returns the key as a string for database storage
 func (bf *Blowfish) GetKeyAsString() string {
-	// Special case: if key is all zeros, return empty string
 	allZero := true
 	for _, val := range bf.Key {
 		if val != 0 {
@@ -93,7 +86,6 @@ func (bf *Blowfish) GetKeyAsString() string {
 		binary.LittleEndian.PutUint32(keyBytes[i*4:], val)
 	}
 
-	// Find the actual length (trim trailing zeros)
 	length := KeySize
 	for i := KeySize - 1; i >= 0; i-- {
 		if keyBytes[i] != 0 {
@@ -105,24 +97,19 @@ func (bf *Blowfish) GetKeyAsString() string {
 	return string(keyBytes[:length])
 }
 
-// GetKeyBytes returns a raw copy of the 20-byte key
 func (bf *Blowfish) GetKeyBytes() []byte {
 	keyBytes := make([]byte, KeySize)
 	for i, val := range bf.Key {
 		binary.LittleEndian.PutUint32(keyBytes[i*4:], val)
 	}
-
 	return keyBytes
 }
 
-// HashHex returns the current MD5 hash representation as hex.
 func (bf *Blowfish) HashHex() string {
 	return hex.EncodeToString(bf.Hash[:])
 }
 
-// initBlowfish initializes the Blowfish cipher (matches C++ initBlowfish)
 func (bf *Blowfish) initBlowfish() error {
-	// Create MD5 hash of the key (20 bytes)
 	keyBytes := make([]byte, KeySize)
 	for i, val := range bf.Key {
 		binary.LittleEndian.PutUint32(keyBytes[i*4:], val)
@@ -130,11 +117,8 @@ func (bf *Blowfish) initBlowfish() error {
 
 	bf.Hash = md5.Sum(keyBytes)
 
-	// The C++ code zeroes out the hash after the first zero byte
-	// This is unusual but we need to match it for compatibility
 	for i := 0; i < HashSize; i++ {
 		if bf.Hash[i] == 0 {
-			// Zero out the rest of the hash
 			for j := i; j < HashSize; j++ {
 				bf.Hash[j] = 0
 			}
@@ -142,73 +126,122 @@ func (bf *Blowfish) initBlowfish() error {
 		}
 	}
 
-	// Create Blowfish cipher with the hash as key
-	var err error
-	bf.Cipher, err = blowfish.NewCipher(bf.Hash[:])
-	if err != nil {
-		return fmt.Errorf("failed to create Blowfish cipher: %w", err)
-	}
-
+	bf.initializeSubkeys()
 	return nil
 }
 
-// IncrementKey increments the key for zone transitions (matches C++ incrementBlowfish)
-func (bf *Blowfish) IncrementKey() error {
-	// Increment the 5th uint32 by 2
-	bf.Key[4] += 2
+func (bf *Blowfish) initializeSubkeys() {
+	// Copy base P-array and S-boxes from the constant subKey dump
+	for i := 0; i < pSize; i++ {
+		start := i * 4
+		bf.P[i] = binary.LittleEndian.Uint32(subKey[start : start+4])
+	}
 
-	// Reinitialize the cipher with the new key
+	offset := pSize * 4
+	for i := 0; i < sSize; i++ {
+		start := offset + i*4
+		bf.S[i] = binary.LittleEndian.Uint32(subKey[start : start+4])
+	}
+
+	j := 0
+	for i := 0; i < pSize; i++ {
+		var data uint32
+		for k := 0; k < 4; k++ {
+			signed := uint32(int32(int8(bf.Hash[j])))
+			data = (data << 8) | signed
+			j++
+			if j >= HashSize {
+				j = 0
+			}
+		}
+		bf.P[i] ^= data
+	}
+
+	datal, datar := uint32(0), uint32(0)
+	for i := 0; i < pSize; i += 2 {
+		datal, datar = bf.encipherBlock(datal, datar)
+		bf.P[i] = datal
+		bf.P[i+1] = datar
+	}
+
+	for i := 0; i < sSize; i += 2 {
+		datal, datar = bf.encipherBlock(datal, datar)
+		bf.S[i] = datal
+		bf.S[i+1] = datar
+	}
+}
+
+func (bf *Blowfish) IncrementKey() error {
+	bf.Key[4] += 2
 	return bf.initBlowfish()
 }
 
-// EncryptECB encrypts data using ECB mode (FFXI uses ECB, not CBC)
 func (bf *Blowfish) EncryptECB(data []byte) {
-	// ECB mode encrypts each 8-byte block independently
-	for i := 0; i < len(data)-7; i += 8 {
-		bf.Cipher.Encrypt(data[i:i+8], data[i:i+8])
+	for i := 0; i+7 < len(data); i += 8 {
+		xl := binary.LittleEndian.Uint32(data[i:])
+		xr := binary.LittleEndian.Uint32(data[i+4:])
+		xl, xr = bf.encipherBlock(xl, xr)
+		binary.LittleEndian.PutUint32(data[i:], xl)
+		binary.LittleEndian.PutUint32(data[i+4:], xr)
 	}
 }
 
-// DecryptECB decrypts data using ECB mode
 func (bf *Blowfish) DecryptECB(data []byte) {
-	// ECB mode decrypts each 8-byte block independently
-	for i := 0; i < len(data)-7; i += 8 {
-		bf.Cipher.Decrypt(data[i:i+8], data[i:i+8])
+	for i := 0; i+7 < len(data); i += 8 {
+		xl := binary.LittleEndian.Uint32(data[i:])
+		xr := binary.LittleEndian.Uint32(data[i+4:])
+		xl, xr = bf.decipherBlock(xl, xr)
+		binary.LittleEndian.PutUint32(data[i:], xl)
+		binary.LittleEndian.PutUint32(data[i+4:], xr)
 	}
 }
 
-// EncryptPacket encrypts an FFXI packet (after the header)
 func (bf *Blowfish) EncryptPacket(packet []byte, headerSize int) {
 	if len(packet) <= headerSize {
 		return
 	}
-
-	// Only encrypt data after the header
 	data := packet[headerSize:]
-
-	// FFXI encrypts in pairs of uint32s (8 bytes)
-	// Calculate the number of 8-byte blocks
-	blockCount := (len(data) / 4) & ^1 // Round down to even number of uint32s
-
+	blockCount := (len(data) / 4) &^ 1
 	if blockCount > 0 {
 		bf.EncryptECB(data[:blockCount*4])
 	}
 }
 
-// DecryptPacket decrypts an FFXI packet (after the header)
 func (bf *Blowfish) DecryptPacket(packet []byte, headerSize int) {
 	if len(packet) <= headerSize {
 		return
 	}
-
-	// Only decrypt data after the header
 	data := packet[headerSize:]
-
-	// FFXI decrypts in pairs of uint32s (8 bytes)
-	// Calculate the number of 8-byte blocks
-	blockCount := (len(data) / 4) & ^1 // Round down to even number of uint32s
-
+	blockCount := (len(data) / 4) &^ 1
 	if blockCount > 0 {
 		bf.DecryptECB(data[:blockCount*4])
 	}
+}
+
+func (bf *Blowfish) encipherBlock(xl, xr uint32) (uint32, uint32) {
+	for i := 0; i < rounds; i++ {
+		xl ^= bf.P[i]
+		xr ^= tt(xl, &bf.S)
+		xl, xr = xr, xl
+	}
+	xl, xr = xr, xl
+	xr ^= bf.P[rounds]
+	xl ^= bf.P[rounds+1]
+	return xl, xr
+}
+
+func (bf *Blowfish) decipherBlock(xl, xr uint32) (uint32, uint32) {
+	for i := rounds + 1; i > 1; i-- {
+		xl ^= bf.P[i]
+		xr ^= tt(xl, &bf.S)
+		xl, xr = xr, xl
+	}
+	xl, xr = xr, xl
+	xr ^= bf.P[1]
+	xl ^= bf.P[0]
+	return xl, xr
+}
+
+func tt(working uint32, S *[sSize]uint32) uint32 {
+	return ((((*S)[256+((working>>8)&0xff)] & 1) ^ 32) + (((*S)[768+(working>>24)] & 1) ^ 32) + (*S)[512+((working>>16)&0xff)] + (*S)[working&0xff])
 }

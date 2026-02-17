@@ -8,7 +8,8 @@ import (
 
 const (
 	PacketTypeGrapList = 0x0051
-	PacketSizeGrapList = 0x0018
+	// Payload size only; the sub-packet header (4 bytes) is added by the router.
+	PacketSizeGrapList = 0x0014
 )
 
 // https://github.com/atom0s/XiPackets/tree/main/world/server/0x0051

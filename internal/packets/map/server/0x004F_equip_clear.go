@@ -8,7 +8,8 @@ import (
 
 const (
 	EquipClearPacketType = 0x004F
-	EquipClearPacketSize = 0x0008
+	// Payload size only; the sub-packet header (4 bytes) is added by the router.
+	EquipClearPacketSize = 0x0004
 )
 
 // https://github.com/atom0s/XiPackets/tree/main/world/server/0x004F

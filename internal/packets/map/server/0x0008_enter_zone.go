@@ -8,7 +8,8 @@ import (
 
 const (
 	EnterZonePacketType = 0x0008
-	EnterZonePacketSize = 0x0034
+	// Payload size only; the sub-packet header (4 bytes) is added by the router.
+	EnterZonePacketSize = 0x0030
 )
 
 // https://github.com/atom0s/XiPackets/tree/main/world/server/0x0008

@@ -2,10 +2,12 @@ package instance
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -119,18 +121,74 @@ func (s *InstanceWorker) sendPacket(clientAddr string, packet serverPackets.Serv
 	if err != nil {
 		return fmt.Errorf("failed to serialize packet: %w", err)
 	}
+	if expected := int(packet.Size()); expected > 0 && len(packetData) < expected {
+		pad := make([]byte, expected-len(packetData))
+		packetData = append(packetData, pad...)
+	}
+	packetSize := len(packetData)
 
-	s.Logger().Info("sending packet", "clientAddr", clientAddr, "packetType", packet.Type(), "packetSize", len(packetData), "expectedPacketSize", packet.Size())
+	s.logPacketDetails(packet, packetData)
+
+	s.Logger().Info("sending packet", "clientAddr", clientAddr, "packetType", packet.Type(), "packetSize", packetSize)
 
 	routedPacket := mapPackets.RoutedPacket{
 		ClientAddr: clientAddr,
 		Packet: mapPackets.BasicPacket{
 			Type: packet.Type(),
-			Size: packet.Size(),
+			Size: uint16(packetSize),
 			Data: packetData,
 		},
 	}
 
 	subject := fmt.Sprintf("map.router.%s.send", clientAddr)
 	return s.NATS().Publish(subject, routedPacket.ToJSON())
+}
+
+func (s *InstanceWorker) logPacketDetails(packet serverPackets.ServerPacket, data []byte) {
+	switch p := packet.(type) {
+	case *serverPackets.CharUpdatePacket:
+		logCharUpdateDebug(s.Logger(), p, data)
+	}
+}
+
+func logCharUpdateDebug(logger *slog.Logger, packet *serverPackets.CharUpdatePacket, raw []byte) {
+	if logger == nil {
+		return
+	}
+
+	sizeUnits := len(raw) / 4
+	flags5Composite := uint32(packet.Flags5) |
+		(uint32(packet.ModelHitboxSize) << 8) |
+		((uint32(packet.Flags6) & 0xFFFF) << 16)
+	name := strings.TrimRight(string(packet.Name[:]), "\x00")
+
+	logger.Debug("GP_SERV_CHAR_PC",
+		"sizeUnits", sizeUnits,
+		"hpp", packet.HPPercent,
+		"status", packet.ServerStatus,
+		"flags0", fmt.Sprintf("%08X", packet.Flags0),
+		"flags1", fmt.Sprintf("%08X", packet.Flags1),
+		"flags2", fmt.Sprintf("%08X", packet.Flags2),
+		"flags3", fmt.Sprintf("%08X", packet.Flags3),
+		"flags4", fmt.Sprintf("%02X", packet.Flags4),
+		"flags5", fmt.Sprintf("%04X", flags5Composite),
+		"flags6", fmt.Sprintf("%08X", packet.Flags6),
+		"grap0", fmt.Sprintf("%04X", packet.GrapIDTbl[0]),
+		"name", name,
+		"preview", hexPreview(raw, 64),
+	)
+}
+
+func hexPreview(data []byte, limit int) string {
+	if len(data) == 0 {
+		return ""
+	}
+	if limit <= 0 || limit > len(data) {
+		limit = len(data)
+	}
+	preview := hex.EncodeToString(data[:limit])
+	if limit < len(data) {
+		return preview + "..."
+	}
+	return preview
 }

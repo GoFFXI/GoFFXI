@@ -128,8 +128,8 @@ func (c *FFXICodec) Decompress(in []byte, bitCount uint32, dst []byte) (int, err
 	written := 0
 	dataBits := bitCount
 	data := in[1:]
-	if uint32(len(data))*8 < dataBits {
-		return 0, fmt.Errorf("compressed input shorter than expected (%d bits needed, %d bytes provided)", dataBits, len(data))
+	if uint32(len(in))*8 < dataBits {
+		return 0, fmt.Errorf("compressed input shorter than expected (%d bits needed, %d bytes provided)", dataBits, len(in))
 	}
 
 	jmp := c.jumpRoot
