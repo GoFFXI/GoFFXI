@@ -8,7 +8,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/joho/godotenv v1.5.1
-	github.com/nats-io/nats.go v1.47.0
+	github.com/nats-io/nats.go v1.48.0
 	github.com/pquerna/otp v1.5.0
 	github.com/uptrace/bun v1.2.15
 	github.com/uptrace/bun/dialect/mysqldialect v1.2.15
