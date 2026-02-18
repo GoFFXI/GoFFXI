@@ -12,7 +12,7 @@ require (
 	github.com/pquerna/otp v1.5.0
 	github.com/uptrace/bun v1.2.16
 	github.com/uptrace/bun/dialect/mysqldialect v1.2.16
-	github.com/uptrace/bun/extra/bunslog v1.2.15
+	github.com/uptrace/bun/extra/bunslog v1.2.16
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/crypto v0.48.0
 )
