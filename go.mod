@@ -2,7 +2,7 @@ module github.com/GoFFXI/GoFFXI
 
 go 1.25.3
 
-require github.com/caarlos0/env/v11 v11.3.1 // direct
+require github.com/caarlos0/env/v11 v11.4.0 // direct
 
 require (
 	github.com/davecgh/go-spew v1.1.1
