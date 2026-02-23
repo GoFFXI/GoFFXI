@@ -10,9 +10,9 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/nats-io/nats.go v1.48.0
 	github.com/pquerna/otp v1.5.0
-	github.com/uptrace/bun v1.2.16
+	github.com/uptrace/bun v1.2.17
 	github.com/uptrace/bun/dialect/mysqldialect v1.2.16
-	github.com/uptrace/bun/extra/bunslog v1.2.16
+	github.com/uptrace/bun/extra/bunslog v1.2.17
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/crypto v0.48.0
 )
