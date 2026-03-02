@@ -107,7 +107,7 @@ jobs:
           ls -la map-*-${{ matrix.os }}-${{ matrix.arch }}*
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: binaries-${{ matrix.os }}-${{ matrix.arch }}
           path: |
